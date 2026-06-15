@@ -138,6 +138,7 @@ void OpenGLDepthCamera::SetupCamera(glm::vec3 _eye, glm::vec3 _dir, glm::vec3 _u
 
 void OpenGLDepthCamera::UpdateTransform()
 {
+    pendingCaptureTime_ = tempCaptureTime_;
     eye_ = tempEye_;
     dir_ = tempDir_;
     up_ = tempUp_;
@@ -349,6 +350,7 @@ void OpenGLDepthCamera::DrawLDR(GLuint destinationFBO, bool updated)
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, NULL);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
         OpenGLState::UnbindTexture(TEX_POSTPROCESS1);
+        captureTime_ = pendingCaptureTime_;
         newData_ = true;
     }
 }

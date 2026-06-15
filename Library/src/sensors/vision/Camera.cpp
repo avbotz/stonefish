@@ -26,6 +26,9 @@
 #include "sensors/vision/Camera.h"
 
 #include "entities/SolidEntity.h"
+#include "graphics/OpenGLView.h"
+#include "core/GraphicalSimulationApp.h"
+#include "core/SimulationManager.h"
 
 namespace sf
 {
@@ -65,6 +68,12 @@ bool Camera::getDisplayOnScreen(unsigned int& x, unsigned int& y, float& scale) 
     return screen_;
 }
 
+Scalar Camera::getLastCaptureTime() const
+{
+    OpenGLView* v = getOpenGLView();
+    return v ? Scalar(v->getCaptureTime()) : Scalar(0);
+}
+
 void Camera::UpdateTransform()
 {
     Transform cameraTransform_ = getSensorFrame();
@@ -72,6 +81,9 @@ void Camera::UpdateTransform()
     Vector3 direction = cameraTransform_.getBasis().getColumn(2); //Z
     Vector3 cameraUp = -cameraTransform_.getBasis().getColumn(1); //-Y
     SetupCamera(eyePosition, direction, cameraUp);
+    OpenGLView* v = getOpenGLView();
+    if(v) v->SetPendingCaptureTime(
+        (double)SimulationApp::getApp()->getSimulationManager()->getSimulationTime(true));
 }
 
 std::vector<Renderable> Camera::Render()

@@ -26,6 +26,7 @@
 #include "sensors/vision/Lidar.h"
 
 #include "core/GraphicalSimulationApp.h"
+#include "core/SimulationManager.h"
 #include "core/DeviceFactory.h"
 #include "graphics/OpenGLPipeline.h"
 #include "graphics/OpenGLContent.h"
@@ -201,6 +202,7 @@ void Lidar::SetupCamera(size_t index, const Vector3& eye, const Vector3& dir, co
     glm::vec3 dir_ = glm::vec3((GLfloat)dir.x(), (GLfloat)dir.y(), (GLfloat)dir.z());
     glm::vec3 up_ = glm::vec3((GLfloat)up.x(), (GLfloat)up.y(), (GLfloat)up.z());
     cameras_[index].cam->SetupCamera(eye_, dir_, up_);
+    cameras_[index].cam->SetPendingCaptureTime((double)SimulationApp::getApp()->getSimulationManager()->getSimulationTime(true));
 }
     
 void Lidar::InstallNewDataHandler(std::function<void(Lidar*)> callback)

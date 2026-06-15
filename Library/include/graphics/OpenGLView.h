@@ -129,6 +129,12 @@ namespace sf
         //! A method saying if the view works in continuous update mode.
         bool isContinuous();
 
+        //! A method to set the simulation time [s] when the pose is committed.
+        void SetPendingCaptureTime(double t);
+
+        //! A method returning the simulation time [s] of the last captured frame.
+        double getCaptureTime() const;
+
         //! A method extracting frustium planes from the view-projection matrix.
         /*!
          \param frustum a pointer to the 6 frustum planes
@@ -144,6 +150,9 @@ namespace sf
         GLuint renderFBO_;
         bool enabled_;
         bool continuous_;
+        double tempCaptureTime_;    //physics thread writes, GL thread reads
+        double pendingCaptureTime_; //GL thread only
+        double captureTime_;        //GL thread only
         ViewUBO viewUBOData_;
     };
 }

@@ -38,6 +38,7 @@ OpenGLView::OpenGLView(GLint x, GLint y, GLint width, GLint height)
     viewportHeight_ = height + height % 2;
     enabled_ = true;
 	continuous_ = false;
+    tempCaptureTime_ = 0.0; pendingCaptureTime_ = 0.0; captureTime_ = 0.0;
     viewUBOData_.VP = glm::mat4(1.f);
     viewUBOData_.eye = glm::vec3(0.f);
     ExtractFrustumFromVP(viewUBOData_.frustum, viewUBOData_.VP);
@@ -66,6 +67,16 @@ bool OpenGLView::isEnabled()
 bool OpenGLView::isContinuous()
 {
 	return continuous_;
+}
+
+void OpenGLView::SetPendingCaptureTime(double t)
+{
+    tempCaptureTime_ = t;
+}
+
+double OpenGLView::getCaptureTime() const
+{
+    return captureTime_;
 }
 
 void OpenGLView::SetViewport()

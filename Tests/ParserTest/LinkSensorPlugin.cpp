@@ -1,0 +1,52 @@
+/*    
+    This file is a part of Stonefish.
+
+    Stonefish is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Stonefish is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+//
+//  LinkSensorPlugin.cpp
+//  Stonefish
+//
+//  Created by Patryk Cieslak on 24/07/2026.
+//  Copyright (c) 2026 Patryk Cieslak. All rights reserved.
+//
+
+#include "LinkSensorPlugin.h"
+
+namespace sf
+{
+
+LinkSensorPlugin::LinkSensorPlugin(const std::string& uniqueName, Scalar frequency, int historyLength) 
+    : LinkSensor(uniqueName, frequency, historyLength)
+{
+    printf("Sensor plugin constructed!\n");
+}
+
+LinkSensorPlugin::~LinkSensorPlugin()
+{
+    printf("Sensor plugin destroyed!\n");
+}
+
+ScalarSensorType LinkSensorPlugin::getScalarSensorType() const
+{
+    return ScalarSensorType::PLUGIN;
+}
+
+void LinkSensorPlugin::InternalUpdate(Scalar dt)
+{
+
+}
+
+}

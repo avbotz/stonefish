@@ -29,6 +29,7 @@
 #include "core/MaterialManager.h"
 #include "entities/ForcefieldEntity.h"
 #include "graphics/OpenGLOcean.h"
+#include "actuators/Actuator.h"
 
 namespace sf
 {
@@ -40,7 +41,6 @@ namespace sf
     };
     
     class VelocityField;
-    class Actuator;
     
     //! A class implementing an ocean.
     class Ocean : public ForcefieldEntity
@@ -160,7 +160,7 @@ namespace sf
         std::vector<Renderable> Render();
 
         //! A method implementing the rendering of the ocean force field.
-        std::vector<Renderable> Render(const std::vector<std::unique_ptr<Actuator>>& act);
+        std::vector<Renderable> Render(const std::vector<std::unique_ptr<Actuator, ActuatorDeleter>>& act);
         
     private:
         Fluid liquid_;

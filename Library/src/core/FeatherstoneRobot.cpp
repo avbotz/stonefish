@@ -245,13 +245,20 @@ void FeatherstoneRobot::Respawn(SimulationManager* sm, const Transform& origin)
     dynamics_->Respawn(origin);
 }
 
-JointSensor* FeatherstoneRobot::AddJointSensor(std::unique_ptr<JointSensor> s, const std::string& monitoredJointName)
+JointSensor* FeatherstoneRobot::AddJointSensor(std::unique_ptr<Sensor, SensorDeleter> s, const std::string& monitoredJointName)
 {
+    if (s == nullptr || s->getType() != SensorType::JOINT)
+    {
+        cCritical("Sensor does not exist or is not a joint sensor!");
+        return nullptr;
+    }
+
     int jointId = getJoint(monitoredJointName);
     if(jointId > -1)
     {
-        s->AttachToJoint(dynamics_, jointId);
-        sensors_.push_back(s.release());
+        static_cast<JointSensor*>(s.get())->AttachToJoint(dynamics_, jointId);
+        detachedSensors_.push_back(std::move(s));
+        sensors_.push_back(detachedSensors_.back().get());
         return static_cast<JointSensor*>(sensors_.back());
     }
     else
@@ -261,13 +268,25 @@ JointSensor* FeatherstoneRobot::AddJointSensor(std::unique_ptr<JointSensor> s, c
     }
 }
 
-JointActuator* FeatherstoneRobot::AddJointActuator(std::unique_ptr<JointActuator> a, const std::string& actuatedJointName)
+JointSensor* FeatherstoneRobot::AddJointSensor(std::unique_ptr<Sensor> s, const std::string& monitoredJointName)
 {
+    return AddJointSensor(std::unique_ptr<Sensor, SensorDeleter>(s.release(), Sensor::defaultDeleter), monitoredJointName);
+}
+
+JointActuator* FeatherstoneRobot::AddJointActuator(std::unique_ptr<Actuator, ActuatorDeleter> a, const std::string& actuatedJointName)
+{
+    if (a == nullptr || a->getType() != ActuatorType::JOINT)
+    {
+        cCritical("Actuator does not exist or is not a joint actuator!");
+        return nullptr;
+    }
+
     int jointId = getJoint(actuatedJointName);
     if(jointId > -1)
     {
-        a->AttachToJoint(dynamics_, jointId);
-        actuators_.push_back(a.release());
+        static_cast<JointActuator*>(a.get())->AttachToJoint(dynamics_, jointId);
+        detachedActuators_.push_back(std::move(a));
+        actuators_.push_back(detachedActuators_.back().get());
         return static_cast<JointActuator*>(actuators_.back());
     }
     else
@@ -277,24 +296,41 @@ JointActuator* FeatherstoneRobot::AddJointActuator(std::unique_ptr<JointActuator
     }
 }
 
-LinkActuator* FeatherstoneRobot::AddLinkActuator(std::unique_ptr<LinkActuator> a, const std::string& actuatedLinkName, const Transform& origin)
+JointActuator* FeatherstoneRobot::AddJointActuator(std::unique_ptr<Actuator> a, const std::string& actuatedJointName)
 {
+    return AddJointActuator(std::unique_ptr<Actuator, ActuatorDeleter>(a.release(), Actuator::defaultDeleter), actuatedJointName);
+}
+
+LinkActuator* FeatherstoneRobot::AddLinkActuator(std::unique_ptr<Actuator, ActuatorDeleter> a, const std::string& actuatedLinkName, const Transform& origin)
+{
+    if (a == nullptr || a->getType() != ActuatorType::LINK)
+    {
+        cCritical("Actuator does not exist or is not a link actuator!");
+        return nullptr;
+    }
+
     int linkId = getLinkIndex(actuatedLinkName);
     if(linkId < -1)
     {
         cCritical("Link '%s' doesn't exist. Actuator '%s' cannot be attached!", actuatedLinkName.c_str(), a->getName().c_str());
         return nullptr;
     }
-    if(a->getLinkActuatorType() == LinkActuatorType::SUCTION_CUP) // Special case
+    if(static_cast<LinkActuator*>(a.get())->getLinkActuatorType() == LinkActuatorType::SUCTION_CUP) // Special case
     {
         static_cast<SuctionCup*>(a.get())->AttachToLink(getDynamics(), linkId);
     }
     else
     {
-        a->AttachToSolid(getLink(actuatedLinkName), origin);
+        static_cast<LinkActuator*>(a.get())->AttachToSolid(getLink(actuatedLinkName), origin);
     }
-    actuators_.push_back(a.release());
+    detachedActuators_.push_back(std::move(a));
+    actuators_.push_back(detachedActuators_.back().get());
     return static_cast<LinkActuator*>(actuators_.back());
+}
+
+LinkActuator* FeatherstoneRobot::AddLinkActuator(std::unique_ptr<Actuator> a, const std::string& actuatedLinkName, const Transform& origin)
+{
+    return AddLinkActuator(std::unique_ptr<Actuator, ActuatorDeleter>(a.release(), Actuator::defaultDeleter), actuatedLinkName, origin);
 }
 
 }

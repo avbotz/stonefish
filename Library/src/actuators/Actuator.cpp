@@ -32,6 +32,11 @@
 namespace sf
 {
 
+void Actuator::defaultDeleter(Actuator* a)
+{
+    delete a;
+}
+
 Actuator::Actuator(const std::string& uniqueName)
 {
     name_ = SimulationApp::getApp()->getSimulationManager()->getNameManager()->AddName(uniqueName);

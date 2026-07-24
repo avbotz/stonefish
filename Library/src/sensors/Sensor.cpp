@@ -37,6 +37,11 @@ namespace sf
 std::random_device Sensor::randomDevice;
 std::mt19937 Sensor::randomGenerator(randomDevice());
 
+void Sensor::defaultDeleter(Sensor* s)
+{
+    delete s;
+}
+
 Sensor::Sensor(const std::string& uniqueName, Scalar frequency)
 {
     name_ = SimulationApp::getApp()->getSimulationManager()->getNameManager()->AddName(uniqueName);

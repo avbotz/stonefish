@@ -268,11 +268,11 @@ void Ocean::InitGraphics(SDL_mutex* hydrodynamics)
 
 std::vector<Renderable> Ocean::Render()
 {
-    std::vector<std::unique_ptr<Actuator>> act;
+    std::vector<std::unique_ptr<Actuator, ActuatorDeleter>> act;
     return Render(act);
 }
 
-std::vector<Renderable> Ocean::Render(const std::vector<std::unique_ptr<Actuator>>& act)
+std::vector<Renderable> Ocean::Render(const std::vector<std::unique_ptr<Actuator, ActuatorDeleter>>& act)
 {
     std::vector<Renderable> items(0);
     

@@ -35,7 +35,7 @@ namespace sf
     
     //! An enum defining types of sensors.
     enum class ActuatorType {JOINT, LINK};
-    
+
     //! An abstract class representing any actuator.
     class Actuator
     {
@@ -75,6 +75,9 @@ namespace sf
 
         //! A method returning the type of the actuator.
         virtual ActuatorType getType() const = 0;
+
+        //! A deleter method required for the plugin architecture.
+        static void defaultDeleter(Actuator* a);
     
     protected:
         virtual void WatchdogTimeout();
@@ -87,4 +90,6 @@ namespace sf
         Scalar watchdog_;
         Scalar watchdogTimeout_;
     };
+
+    using ActuatorDeleter = void(*)(Actuator*);
 }

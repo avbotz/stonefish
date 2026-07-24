@@ -31,6 +31,9 @@
 #include "entities/SolidEntity.h"
 #include "utils/PerformanceMonitor.h"
 #include "BulletSoftBody/btSoftMultiBodyDynamicsWorld.h"
+#include "sensors/Sensor.h"
+#include "actuators/Actuator.h"
+#include "comms/Comm.h"
 
 namespace sf
 {
@@ -44,9 +47,6 @@ namespace sf
     class AnimatedEntity;
     class FeatherstoneEntity;
     class Joint;
-    class Actuator;
-    class Sensor;
-    class Comm;
     class Contact;
     class OpenGLTrackball;
     class OpenGLDebugDrawer;
@@ -204,6 +204,7 @@ namespace sf
          \return pointer to the added actuator
          */
         Actuator* AddActuator(std::unique_ptr<Actuator> act);
+        Actuator* AddActuator(std::unique_ptr<Actuator, ActuatorDeleter> act);
         
         //! A method that adds a sensor to the simulation world.
         /*!
@@ -211,6 +212,7 @@ namespace sf
          \return pointer to the add sensor
          */
         Sensor* AddSensor(std::unique_ptr<Sensor> sens);
+        Sensor* AddSensor(std::unique_ptr<Sensor, SensorDeleter> sens);
         
         //! A method that adds a communication device to the simulation world.
         /*!
@@ -218,6 +220,7 @@ namespace sf
          \return pointer to the add comm
          */
         Comm* AddComm(std::unique_ptr<Comm> comm);
+        Comm* AddComm(std::unique_ptr<Comm, CommDeleter> comm);
         
         //! A method that adds contact monitoring between two entities.
         /*!
@@ -604,15 +607,15 @@ namespace sf
         Scalar angSleepThreshold_;
         Scalar jointErp_;
         Scalar jointLimitErp_;
-
+    
         // Scenario
         std::unique_ptr<NameManager> nameManager_;
         std::vector<std::unique_ptr<Robot>> robots_;
         std::vector<std::unique_ptr<Entity>> entities_;
         std::vector<std::unique_ptr<Joint>> joints_;
-        std::vector<std::unique_ptr<Sensor>> sensors_;
-        std::vector<std::unique_ptr<Actuator>> actuators_;
-        std::vector<std::unique_ptr<Comm>> comms_;
+        std::vector<std::unique_ptr<Sensor, SensorDeleter>> sensors_;
+        std::vector<std::unique_ptr<Actuator, ActuatorDeleter>> actuators_;
+        std::vector<std::unique_ptr<Comm, CommDeleter>> comms_;
         std::vector<std::unique_ptr<Contact>> contacts_;
         
         // Collision pairs

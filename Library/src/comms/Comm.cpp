@@ -34,6 +34,11 @@
 namespace sf
 {
 
+void Comm::defaultDeleter(Comm* c)
+{
+    delete c;
+}
+
 Comm::Comm(const std::string& uniqueName, uint64_t deviceId)
 {
     name_ = SimulationApp::getApp()->getSimulationManager()->getNameManager()->AddName(uniqueName);

@@ -61,6 +61,7 @@
 #include "utils/SystemUtil.hpp"
 #include "tinyexpr.h"
 #include <sstream>
+#include <dlfcn.h>
 
 namespace sf
 {
@@ -291,7 +292,7 @@ bool ScenarioParser::Parse(std::string filename)
     element = root->FirstChildElement("comm");
     while(element != nullptr)
     {
-        std::unique_ptr<Comm> comm = ParseComm(element, "");
+        std::unique_ptr<Comm, CommDeleter> comm = ParseComm(element, "");
         if(comm == nullptr)
         {
             log.Print(MessageType::ERROR, "Communication device not properly defined!");
@@ -1138,7 +1139,7 @@ bool ScenarioParser::ParseStatic(XMLElement* element)
     item = element->FirstChildElement("comm");
     while(item != nullptr)
     {
-        std::unique_ptr<Comm> comm = ParseComm(item, object->getName());
+        std::unique_ptr<Comm, CommDeleter> comm = ParseComm(item, object->getName());
         if(comm == nullptr)
         {
             log.Print(MessageType::ERROR, "Communication device of static body '%s' not properly defined!", objectName.c_str());
@@ -1465,7 +1466,7 @@ bool ScenarioParser::ParseAnimated(XMLElement* element)
     item = element->FirstChildElement("comm");
     while(item != nullptr)
     {
-        std::unique_ptr<Comm> comm = ParseComm(item, object->getName());
+        std::unique_ptr<Comm, CommDeleter> comm = ParseComm(item, object->getName());
         if(comm == nullptr)
         {
             log.Print(MessageType::ERROR, "Communication device of animated body '%s' not properly defined!", objectName.c_str());
@@ -1548,7 +1549,7 @@ bool ScenarioParser::ParseDynamic(XMLElement* element)
     item = element->FirstChildElement("comm");
     while(item != nullptr)
     {
-        std::unique_ptr<Comm> comm = ParseComm(item, solid->getName());
+        std::unique_ptr<Comm, CommDeleter> comm = ParseComm(item, solid->getName());
         if(comm == nullptr)
         {
             log.Print(MessageType::ERROR, "Communication device of dynamic body '%s' not properly defined!", solid->getName().c_str());
@@ -2248,7 +2249,7 @@ bool ScenarioParser::ParseRobot(XMLElement* element)
     item = element->FirstChildElement("comm");
     while(item != nullptr)
     {
-        std::unique_ptr<Comm> comm = ParseComm(item, robot->getName());
+        std::unique_ptr<Comm, CommDeleter> comm = ParseComm(item, robot->getName());
         if(comm == nullptr)
         {
             log.Print(MessageType::ERROR, "Communication device of robot '%s' not properly defined!", robotName.c_str());
@@ -2380,7 +2381,7 @@ bool ScenarioParser::ParseJoint(XMLElement* element, Robot* robot)
 bool ScenarioParser::ParseActuator(XMLElement* element, Robot* robot)
 {
     //Parse
-    std::unique_ptr<Actuator> act = ParseActuator(element, robot->getName());
+    std::unique_ptr<Actuator, ActuatorDeleter> act = ParseActuator(element, robot->getName());
     if(act == nullptr)
         return false;
     
@@ -2407,7 +2408,7 @@ bool ScenarioParser::ParseActuator(XMLElement* element, Robot* robot)
                 log.Print(MessageType::ERROR, "Joint definition for actuator '%s' missing!", act->getName().c_str());
                 return false;
             }
-            robot->AddJointActuator(std::unique_ptr<JointActuator>(static_cast<JointActuator*>(act.release())), robot->getName() + "/" + std::string(jointName));
+            robot->AddJointActuator(std::move(act), robot->getName() + "/" + std::string(jointName));
         }
             break;
 
@@ -2428,7 +2429,7 @@ bool ScenarioParser::ParseActuator(XMLElement* element, Robot* robot)
                 log.Print(MessageType::ERROR, "Origin frame of actuator '%s' missing!", act->getName().c_str());
                 return false;
             }
-            robot->AddLinkActuator(std::unique_ptr<LinkActuator>(static_cast<LinkActuator*>(act.release())), robot->getName() + "/" + std::string(linkName), origin);
+            robot->AddLinkActuator(std::move(act), robot->getName() + "/" + std::string(linkName), origin);
         }
             break;
 
@@ -2446,7 +2447,7 @@ bool ScenarioParser::ParseActuator(XMLElement* element, Robot* robot)
 bool ScenarioParser::ParseSensor(XMLElement* element, Robot* robot)
 {
     //Parse
-    std::unique_ptr<Sensor> sens = ParseSensor(element, robot->getName());
+    std::unique_ptr<Sensor, SensorDeleter> sens = ParseSensor(element, robot->getName());
     if(sens == nullptr)
         return false;
 
@@ -2464,7 +2465,7 @@ bool ScenarioParser::ParseSensor(XMLElement* element, Robot* robot)
                 log.Print(MessageType::ERROR, "Joint definition for sensor '%s' missing!", sens->getName().c_str());
                 return false;
             }
-            robot->AddJointSensor(std::unique_ptr<JointSensor>(static_cast<JointSensor*>(sens.release())), robot->getName() + "/" + std::string(jointName));
+            robot->AddJointSensor(std::move(sens), robot->getName() + "/" + std::string(jointName));
         }
             break;
 
@@ -2487,9 +2488,9 @@ bool ScenarioParser::ParseSensor(XMLElement* element, Robot* robot)
                 return false;
             }
             if(sens->getType() == SensorType::LINK)
-                robot->AddLinkSensor(std::unique_ptr<LinkSensor>(static_cast<LinkSensor*>(sens.release())), robot->getName() + "/" + std::string(linkName), origin);
+                robot->AddLinkSensor(std::move(sens), robot->getName() + "/" + std::string(linkName), origin);
             else
-                robot->AddVisionSensor(std::unique_ptr<VisionSensor>(static_cast<VisionSensor*>(sens.release())), robot->getName() + "/" + std::string(linkName), origin);
+                robot->AddVisionSensor(std::move(sens), robot->getName() + "/" + std::string(linkName), origin);
         }
             break;
 
@@ -2507,7 +2508,7 @@ bool ScenarioParser::ParseSensor(XMLElement* element, Robot* robot)
 bool ScenarioParser::ParseSensor(XMLElement* element, Entity* ent)
 {
     //Parse
-    std::unique_ptr<Sensor> sens = ParseSensor(element, ent != nullptr ? ent->getName() : "");
+    std::unique_ptr<Sensor, SensorDeleter> sens = ParseSensor(element, ent != nullptr ? ent->getName() : "");
     if(sens == nullptr)
         return false;
 
@@ -2580,7 +2581,7 @@ bool ScenarioParser::ParseSensor(XMLElement* element, Entity* ent)
     return true;
 }
 
-std::unique_ptr<Actuator> ScenarioParser::ParseActuator(XMLElement* element, const std::string& namePrefix)
+std::unique_ptr<Actuator, ActuatorDeleter> ScenarioParser::ParseActuator(XMLElement* element, const std::string& namePrefix)
 {
     //---- Common ----
     const char* name = nullptr;
@@ -2589,7 +2590,7 @@ std::unique_ptr<Actuator> ScenarioParser::ParseActuator(XMLElement* element, con
     if(element->QueryStringAttribute("name", &name) != XML_SUCCESS)
     {
         log.Print(MessageType::ERROR, "Actuator name missing (namespace '%s')!", namePrefix.c_str());   
-        return nullptr;
+        return {nullptr, nullptr};
     }
     std::string actuatorName = std::string(name);
     if(namePrefix != "")
@@ -2600,7 +2601,7 @@ std::unique_ptr<Actuator> ScenarioParser::ParseActuator(XMLElement* element, con
     if(element->QueryStringAttribute("type", &type) != XML_SUCCESS)
     {
         log.Print(MessageType::ERROR, "Type of actuator '%s' missing!", actuatorName.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
     std::string typeStr(type);
  
@@ -2609,21 +2610,21 @@ std::unique_ptr<Actuator> ScenarioParser::ParseActuator(XMLElement* element, con
     if (factory == nullptr)
     {
         log.Print(MessageType::ERROR, "Actuator type '%s' not supported!", typeStr.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
 
     ConstructInfo info = factory->getConstructInfo();
 
     if (ParseConstructInfo(element, info))
-        return factory->construct(actuatorName, info);
+        return std::unique_ptr<Actuator, ActuatorDeleter>(factory->construct(actuatorName, info).release(), Actuator::defaultDeleter);
     else
-        return nullptr;
+        return {nullptr, nullptr};
 }
 
-std::unique_ptr<Sensor> ScenarioParser::ParseSensor(XMLElement* element, const std::string& namePrefix)
+std::unique_ptr<Sensor, SensorDeleter> ScenarioParser::ParseSensor(XMLElement* element, const std::string& namePrefix)
 {
     //---- Common ----
-    std::unique_ptr<Sensor> sens {};
+    std::unique_ptr<Sensor, SensorDeleter> sens {nullptr, nullptr};
     const char* name = nullptr;
     const char* type = nullptr;
     Scalar rate;
@@ -2632,7 +2633,7 @@ std::unique_ptr<Sensor> ScenarioParser::ParseSensor(XMLElement* element, const s
     if(element->QueryStringAttribute("name", &name) != XML_SUCCESS)
     {
         log.Print(MessageType::ERROR, "Sensor name missing (namespace '%s')!", namePrefix.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
     std::string sensorName = std::string(name);
     if(namePrefix != "")
@@ -2643,26 +2644,61 @@ std::unique_ptr<Sensor> ScenarioParser::ParseSensor(XMLElement* element, const s
     if(element->QueryStringAttribute("type", &type) != XML_SUCCESS)
     {
         log.Print(MessageType::ERROR, "Type of sensor '%s' missing!", sensorName.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
     if(element->QueryAttribute("rate", &rate) != XML_SUCCESS)
         rate = Scalar(-1);
     std::string typeStr(type);
 
     //---- Specific ----
-    const SensorFactoryEntry* factory = SensorFactory::Instance().Find(typeStr);
-    if (factory == nullptr)
+    if (typeStr == "plugin")
     {
-        log.Print(MessageType::ERROR, "Sensor type '%s' not supported!", typeStr.c_str());
-        return nullptr;
+        const char* plugin = nullptr;
+        if (element->QueryStringAttribute("plugin", &plugin) != XML_SUCCESS)
+        {
+            log.Print(MessageType::ERROR, "Plugin path for sensor '%s' missing!", sensorName.c_str());
+            return {nullptr, nullptr};
+        }
+
+        std::string pluginPath = GetFullPath(std::string(plugin));
+
+        void* handle = SimulationApp::getApp()->getPluginHandle(pluginPath); // Check if plugin already loaded
+        
+        if (!handle) // Load plugin
+        {
+            handle = dlopen(pluginPath.c_str(), RTLD_LAZY);
+
+            if (!handle)
+            {
+                log.Print(MessageType::ERROR, "Cannot load plugin for sensor '%s'!", sensorName.c_str());
+                return {nullptr, nullptr};
+            }
+
+            SimulationApp::getApp()->AddPluginHandle(pluginPath, handle);
+        }
+ 
+        dlerror();
+        auto createSensor = (CreateSensorFunc)dlsym(handle, "create");
+        auto destroySensor = (DestroySensorFunc)dlsym(handle, "destroy");
+
+        sens = std::unique_ptr<Sensor, SensorDeleter>(createSensor(sensorName.c_str(), rate), destroySensor);
     }
-
-    ConstructInfo info = factory->getConstructInfo();
-
-    if (ParseConstructInfo(element, info))
-        sens = factory->construct(sensorName, rate, info);
     else
-        return nullptr;
+    {
+        const SensorFactoryEntry* factory = SensorFactory::Instance().Find(typeStr);
+        if (factory == nullptr)
+        {
+            log.Print(MessageType::ERROR, "Sensor type '%s' not supported!", typeStr.c_str());
+            return {nullptr, nullptr};
+        }
+
+        ConstructInfo info = factory->getConstructInfo();
+
+        if (ParseConstructInfo(element, info))
+            sens = std::unique_ptr<Sensor, SensorDeleter>(factory->construct(sensorName, rate, info).release(), Sensor::defaultDeleter);
+        else
+            return {nullptr, nullptr};
+    }
 
     //---- Visuals ----
     const char* visFile = nullptr;
@@ -2741,10 +2777,9 @@ std::unique_ptr<Light> ScenarioParser::ParseLight(XMLElement* element, const std
         return std::make_unique<Light>(lightName, radius, color, illu);
 }
 
-std::unique_ptr<Comm> ScenarioParser::ParseComm(XMLElement* element, const std::string& namePrefix)
+std::unique_ptr<Comm, CommDeleter> ScenarioParser::ParseComm(XMLElement* element, const std::string& namePrefix)
 {
     // ---- Common ----
-    std::unique_ptr<Comm> comm {};
     const char* name = nullptr;
     const char* type = nullptr;
     unsigned int devId;
@@ -2752,7 +2787,7 @@ std::unique_ptr<Comm> ScenarioParser::ParseComm(XMLElement* element, const std::
     if(element->QueryStringAttribute("name", &name) != XML_SUCCESS)
     {
         log.Print(MessageType::ERROR, "Communication device name missing (namespace '%s')!", namePrefix.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
     std::string commName = std::string(name);
     if(namePrefix != "")
@@ -2763,14 +2798,14 @@ std::unique_ptr<Comm> ScenarioParser::ParseComm(XMLElement* element, const std::
     if(element->QueryStringAttribute("type", &type) != XML_SUCCESS)
     {
         log.Print(MessageType::ERROR, "Type of communication device '%s' missing!", commName.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
     std::string typeStr(type);
 
     if(element->QueryAttribute("device_id", &devId) != XML_SUCCESS)
     {
         log.Print(MessageType::ERROR, "Id of communication device '%s' missing!", commName.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
 
     // ---- Specific ----
@@ -2778,15 +2813,15 @@ std::unique_ptr<Comm> ScenarioParser::ParseComm(XMLElement* element, const std::
     if (factory == nullptr)
     {
         log.Print(MessageType::ERROR, "Communication device type '%s' not supported!", typeStr.c_str());
-        return nullptr;
+        return {nullptr, nullptr};
     }
 
     ConstructInfo info = factory->getConstructInfo();
 
     if (ParseConstructInfo(element, info))
-        comm = factory->construct(commName, devId, info);
+        return std::unique_ptr<Comm, CommDeleter>(factory->construct(commName, devId, info).release(), Comm::defaultDeleter);
     else
-        return nullptr;
+        return {nullptr, nullptr};
 }
 
 bool ScenarioParser::ParseContact(XMLElement* element)

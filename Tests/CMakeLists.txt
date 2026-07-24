@@ -35,3 +35,6 @@ target_link_libraries(CableTest Stonefish_test)
 
 add_executable(ParserTest ParserTest/main.cpp ParserTest/ParserTestManager.cpp)
 target_link_libraries(ParserTest Stonefish_test)
+
+add_library(LinkSensorPlugin SHARED ParserTest/LinkSensorPlugin.cpp)
+target_link_libraries(LinkSensorPlugin PRIVATE Stonefish_test)

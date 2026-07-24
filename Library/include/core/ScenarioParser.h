@@ -30,6 +30,9 @@
 #include "core/ConstructInfo.h"
 #include "tinyxml2.h"
 #include <map>
+#include "actuators/Actuator.h"
+#include "sensors/Sensor.h"
+#include "comms/Comm.h"
 
 using namespace tinyxml2;
 
@@ -39,10 +42,7 @@ namespace sf
     class Robot;
     class Entity;
     class SolidEntity;
-    class Sensor;
-    class Actuator;
     class Light;
-    class Comm;
     class VelocityField;
     class FixedJoint;
     struct Color;
@@ -237,7 +237,7 @@ namespace sf
          \param namePrefix a string added at the beginning of the actuator name
          \return pointer to actuator
          */
-        virtual std::unique_ptr<Actuator> ParseActuator(XMLElement* element, const std::string& namePrefix);
+        virtual std::unique_ptr<Actuator, ActuatorDeleter> ParseActuator(XMLElement* element, const std::string& namePrefix);
 
         //! A method used to parse a description of a sensor.
         /*!
@@ -245,7 +245,7 @@ namespace sf
          \param namePrefix a string added at the beginning of the sensor name
          \return pointer to sensor
          */
-        virtual std::unique_ptr<Sensor> ParseSensor(XMLElement* element, const std::string& namePrefix);
+        virtual std::unique_ptr<Sensor, SensorDeleter> ParseSensor(XMLElement* element, const std::string& namePrefix);
         
         //! A method used to parse a description of a light source.
         /*!
@@ -261,7 +261,7 @@ namespace sf
          \param namePrefix a string added at the beginning of the comm name
          \return pointer to the communication device
          */
-        virtual std::unique_ptr<Comm> ParseComm(XMLElement* element, const std::string& namePrefix);
+        virtual std::unique_ptr<Comm, CommDeleter> ParseComm(XMLElement* element, const std::string& namePrefix);
         
         //! A method used to parse a single contact description.
         /*!

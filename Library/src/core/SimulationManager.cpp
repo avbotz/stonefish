@@ -270,6 +270,11 @@ void SimulationManager::EnableAtmosphere()
 
 Sensor* SimulationManager::AddSensor(std::unique_ptr<Sensor> sens)
 {
+    return AddSensor(std::unique_ptr<Sensor, SensorDeleter>(sens.release(), Sensor::defaultDeleter));
+}
+
+Sensor* SimulationManager::AddSensor(std::unique_ptr<Sensor, SensorDeleter> sens)
+{
     if(sens != nullptr)
     {
         sensors_.push_back(std::move(sens));
@@ -280,6 +285,11 @@ Sensor* SimulationManager::AddSensor(std::unique_ptr<Sensor> sens)
 }
 
 Comm* SimulationManager::AddComm(std::unique_ptr<Comm> comm)
+{
+    return AddComm(std::unique_ptr<Comm, CommDeleter>(comm.release(), Comm::defaultDeleter));
+}
+
+Comm* SimulationManager::AddComm(std::unique_ptr<Comm, CommDeleter> comm)
 {
     if(comm != nullptr)
     {
@@ -316,6 +326,11 @@ void SimulationManager::RemoveJoint(Joint* jnt)
 }
 
 Actuator* SimulationManager::AddActuator(std::unique_ptr<Actuator> act)
+{
+    return AddActuator(std::unique_ptr<Actuator, ActuatorDeleter>(act.release(), Actuator::defaultDeleter));
+}
+
+Actuator* SimulationManager::AddActuator(std::unique_ptr<Actuator, ActuatorDeleter> act)
 {
     if(act != nullptr)
     {
@@ -492,7 +507,9 @@ Actuator* SimulationManager::getActuator(unsigned int index)
 
 Actuator* SimulationManager::getActuator(const std::string& name)
 {
-    auto it = std::find_if(actuators_.begin(), actuators_.end(), [&name](const std::unique_ptr<Actuator>& e) { return e->getName() == name; });
+    auto it = std::find_if(actuators_.begin(), actuators_.end(), 
+        [&name](const std::unique_ptr<Actuator, ActuatorDeleter>& e) { return e->getName() == name; }
+    );
     if(it != actuators_.end())
         return it->get();
     else
@@ -509,7 +526,9 @@ Sensor* SimulationManager::getSensor(unsigned int index)
 
 Sensor* SimulationManager::getSensor(const std::string& name)
 {
-    auto it = std::find_if(sensors_.begin(), sensors_.end(), [&name](const std::unique_ptr<Sensor>& e) { return e->getName() == name; });
+    auto it = std::find_if(sensors_.begin(), sensors_.end(), 
+        [&name](const std::unique_ptr<Sensor, SensorDeleter>& e) { return e->getName() == name; }
+    );
     if(it != sensors_.end())
         return it->get();
     else
@@ -526,7 +545,9 @@ Comm* SimulationManager::getComm(unsigned int index)
 
 Comm* SimulationManager::getComm(const std::string& name)
 {
-    auto it = std::find_if(comms_.begin(), comms_.end(), [&name](const std::unique_ptr<Comm>& e) { return e->getName() == name; });
+    auto it = std::find_if(comms_.begin(), comms_.end(), 
+        [&name](const std::unique_ptr<Comm, CommDeleter>& e) { return e->getName() == name; }
+    );
     if(it != comms_.end())
         return it->get();
     else

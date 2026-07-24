@@ -27,6 +27,7 @@
 
 #include "core/SimulationManager.h"
 #include "utils/SystemUtil.hpp"
+#include <dlfcn.h>
 
 namespace sf
 {
@@ -49,6 +50,9 @@ SimulationApp::SimulationApp(const std::string& title, const std::string& dataDi
 
 SimulationApp::~SimulationApp()
 {
+    for (auto h : pluginHandles_)
+        dlclose(h.second);
+
     if(SimulationApp::handle == this)
         SimulationApp::handle = nullptr;
 }
@@ -96,6 +100,15 @@ Console* SimulationApp::getConsole()
 ThreadPool* SimulationApp::getPhysicsThreadPool()
 {
     return physicsThreadPool_.get();
+}
+
+void* SimulationApp::getPluginHandle(const std::string& name)
+{
+    auto it = pluginHandles_.find(name);
+    if (it != pluginHandles_.end())
+        return it->second;
+    else
+        return nullptr;
 }
 
 void SimulationApp::Init()
@@ -180,6 +193,11 @@ void SimulationApp::Quit()
 
 void SimulationApp::CleanUp()
 {
+}
+
+void SimulationApp::AddPluginHandle(const std::string& name, void* handle)
+{
+    pluginHandles_.insert({name, handle});
 }
 
 //Static

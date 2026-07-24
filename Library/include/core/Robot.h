@@ -28,19 +28,17 @@
 #include <utility>
 #include "StonefishCommon.h"
 #include "joints/Joint.h"
+#include "sensors/scalar/LinkSensor.h"
+#include "sensors/scalar/JointSensor.h"
+#include "sensors/VisionSensor.h"
+#include "actuators/JointActuator.h"
+#include "actuators/LinkActuator.h"
+#include "comms/Comm.h"
 
 namespace sf
 {
     class SimulationManager;
     class SolidEntity;
-    class Sensor;
-    class Actuator;
-    class Comm;
-    class LinkSensor;
-    class JointSensor;
-    class VisionSensor;
-    class LinkActuator;
-    class JointActuator;
     
     //! An enum specifying the type of entity.
     enum class RobotType {GENERAL, FEATHERSTONE};
@@ -113,14 +111,16 @@ namespace sf
          \param monitoredLinkName a name of the link to which the sensor is attached
          \param origin a transfromation from the link origin to the sensor frame
          */
-        virtual LinkSensor* AddLinkSensor(std::unique_ptr<LinkSensor> s, const std::string& monitoredLinkName, const Transform& origin);
+        virtual LinkSensor* AddLinkSensor(std::unique_ptr<Sensor> s, const std::string& monitoredLinkName, const Transform& origin);
+        virtual LinkSensor* AddLinkSensor(std::unique_ptr<Sensor, SensorDeleter> s, const std::string& monitoredLinkName, const Transform& origin);
         
         //! A method used to attach a sensor to a specified joint of the robot.
         /*!
          \param s a pointer to a joint sensor object
          \param monitoredJointName a name of the joint at which the sensor is attached
          */
-        virtual JointSensor* AddJointSensor(std::unique_ptr<JointSensor> s, const std::string& monitoredJointName) = 0;
+        virtual JointSensor* AddJointSensor(std::unique_ptr<Sensor> s, const std::string& monitoredJointName) = 0;
+        virtual JointSensor* AddJointSensor(std::unique_ptr<Sensor, SensorDeleter> s, const std::string& monitoredJointName) = 0;
         
         //! A method used to attach a vision sensor to a specified link of the robot.
         /*!
@@ -128,8 +128,9 @@ namespace sf
          \param attachmentLinkName a name of the link to which the sensor is attached
          \param origin a transformation from the link origin to the sensor frame
          */
-        virtual VisionSensor* AddVisionSensor(std::unique_ptr<VisionSensor> s, const std::string& attachmentLinkName, const Transform& origin);
-        
+        virtual VisionSensor* AddVisionSensor(std::unique_ptr<Sensor> s, const std::string& attachmentLinkName, const Transform& origin);
+        virtual VisionSensor* AddVisionSensor(std::unique_ptr<Sensor, SensorDeleter> s, const std::string& attachmentLinkName, const Transform& origin);
+
         //ACTUATORS
         //! A method used to attach an actuator to a specified link of the robot.
         /*!
@@ -137,14 +138,16 @@ namespace sf
          \param actuatedLinkName a name of the link which is to be actuated
          \param origin a transformation from the link origin to the actuator frame
          */
-        virtual LinkActuator* AddLinkActuator(std::unique_ptr<LinkActuator> a, const std::string& actuatedLinkName, const Transform& origin);
+        virtual LinkActuator* AddLinkActuator(std::unique_ptr<Actuator> a, const std::string& actuatedLinkName, const Transform& origin);
+        virtual LinkActuator* AddLinkActuator(std::unique_ptr<Actuator, ActuatorDeleter> a, const std::string& actuatedLinkName, const Transform& origin);
         
         //! A method used to attach an actuator to a specified joint of the robot.
         /*!
          \param a a pointer to a joint actuator object
          \param actuatedJointName a name of the joint which is to be driven
          */
-        virtual JointActuator* AddJointActuator(std::unique_ptr<JointActuator> a, const std::string& actuatedJointName) = 0;
+        virtual JointActuator* AddJointActuator(std::unique_ptr<Actuator> a, const std::string& actuatedJointName) = 0;
+        virtual JointActuator* AddJointActuator(std::unique_ptr<Actuator, ActuatorDeleter> a, const std::string& actuatedJointName) = 0;
         
         //COMMUNICATION DEVICES
         //! A method used to attach a communication device to a specified link of the robot.
@@ -154,6 +157,7 @@ namespace sf
          \param origin a transfromation from the link origin to the comm frame
          */
         virtual Comm* AddComm(std::unique_ptr<Comm> c, const std::string& attachmentLinkName, const Transform& origin);
+        virtual Comm* AddComm(std::unique_ptr<Comm, CommDeleter> c, const std::string& attachmentLinkName, const Transform& origin);
         
         //GENERAL
         //! A method adding the robot to the simulation world (includes consistency checking).
@@ -253,6 +257,9 @@ namespace sf
         };
         std::vector<JointData> jointsData_;
         std::vector<std::unique_ptr<SolidEntity>> detachedLinks_;
+        std::vector<std::unique_ptr<Actuator, ActuatorDeleter>> detachedActuators_;
+        std::vector<std::unique_ptr<Sensor, SensorDeleter>> detachedSensors_;
+        std::vector<std::unique_ptr<Comm, CommDeleter>> detachedComms_;
         
         // Pointers to robot parts in the simulation world
         std::vector<SolidEntity*> links_;

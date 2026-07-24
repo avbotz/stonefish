@@ -61,7 +61,7 @@
 		<actuator name="Propeller" type="propeller">
 			<link name="L2"/>
 			<origin xyz="0 0 0.5" rpy="0 0 0"/>
-			<specs thrust_coeff="1.0" thrust_coeff_backward="0.8" torque_coeff="0.1" max_rpm="1000.0" inverted="false"/>
+			<specs thrust_coeff="1.0" thrust_coeff_reverse="0.8" torque_coeff="0.1" max_rpm="1000.0" inverted="false"/>
 			<propeller diameter="0.2" right="true">
 				<mesh filename="propeller.obj" scale="1.0"/>
 				<material name="steel"/>
@@ -110,9 +110,9 @@
 			<origin rpy="0 0 0" xyz="0 0 3"/>
 			<specs max_setpoint="100.0" inverted_setpoint="false" normalized_setpoint="true"/>
 			<propeller diameter="0.2" right="true">
-				<mesh filename="propeller.obj" scale="1.0" />
-				<material name="concrete" />
-				<look name="red" />
+				<mesh filename="propeller.obj" scale="1.0"/>
+				<material name="steel"/>
+				<look name="red"/>
 			</propeller>
 			<rotor_dynamics type="mechanical_pi">
 				<rotor_inertia value="0.05"/>
@@ -125,6 +125,11 @@
 				<torque_coeff value="0.05"/>
 			</thrust_model>
 		</actuator>
+
+		<sensor name="Plugin" type="plugin" rate="10.0" plugin="/home/pcieslak/Libs/stonefish/build/Tests/libLinkSensorPlugin.so">
+			<link name="L2"/>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+		</sensor>
 
 		<world_transform xyz="5.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
 	</robot>

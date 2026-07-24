@@ -146,6 +146,9 @@ namespace sf
         
         //! A method returning the type of the comm.
         virtual CommType getType() const = 0;
+
+        //! A deleter method required for the plugin architecture.
+        static void defaultDeleter(Comm* c);
         
     protected:
         //! A method performing an internal update of the comm state.
@@ -171,4 +174,6 @@ namespace sf
         Transform o2c_;
         bool renderable_;
     };
+
+    using CommDeleter = void(*)(Comm*);
 }

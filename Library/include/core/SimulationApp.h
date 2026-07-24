@@ -82,6 +82,9 @@ namespace sf
         //! A method that performs a single simulation step and necessary updates.
         virtual void StepSimulation();
 
+        //! A method that stores the plugin handles.
+        void AddPluginHandle(const std::string& name, void* handle);
+        
         //! A method setting the maximum allowed parallel threads for physcis computation.
         /*!
          \param n number of threads
@@ -112,9 +115,12 @@ namespace sf
         //! A method returning the physics thread pool.
         ThreadPool* getPhysicsThreadPool();
 
+        //! A method returning the plugin handle.
+        void* getPluginHandle(const std::string& name);
+
         //! A method informing if the application is graphical.
         virtual bool hasGraphics() = 0;
-        
+
         //! A static method returning the pointer to the currently running application.
         static SimulationApp* getApp();
         
@@ -141,6 +147,7 @@ namespace sf
         std::string title_;
         std::string dataPath_;
         double physicsTime_;
+        std::unordered_map<std::string, void*> pluginHandles_;
         
         static SimulationApp* handle;
     };

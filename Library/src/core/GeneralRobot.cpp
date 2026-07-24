@@ -79,28 +79,52 @@ void GeneralRobot::BuildKinematicStructure()
 {   
 }
         
-JointSensor* GeneralRobot::AddJointSensor(std::unique_ptr<JointSensor> s, const std::string& monitoredJointName)
+JointSensor* GeneralRobot::AddJointSensor(std::unique_ptr<Sensor, SensorDeleter> s, const std::string& monitoredJointName)
 {
+    if (s == nullptr || s->getType() != SensorType::JOINT)
+    {
+        cCritical("Sensor does not exist or is not a joint sensor!");
+        return nullptr;
+    }
+
     for(size_t i = 0; i < jointsData_.size(); ++i)
         if(jointsData_[i].name == monitoredJointName)
         {
-            jsAttachments_.push_back(std::make_pair(s.get(), monitoredJointName));
-            sensors_.push_back(s.release());
+            jsAttachments_.push_back(std::make_pair(static_cast<JointSensor*>(s.get()), monitoredJointName));
+            detachedSensors_.push_back(std::move(s));
+            sensors_.push_back(detachedSensors_.back().get());
             return static_cast<JointSensor*>(sensors_.back());
         }
     return nullptr;
 }
 
-JointActuator* GeneralRobot::AddJointActuator(std::unique_ptr<JointActuator> a, const std::string& actuatedJointName)
+JointSensor* GeneralRobot::AddJointSensor(std::unique_ptr<Sensor> s, const std::string& monitoredJointName)
 {
+    return AddJointSensor(std::unique_ptr<Sensor, SensorDeleter>(s.release(), Sensor::defaultDeleter), monitoredJointName);
+}
+
+JointActuator* GeneralRobot::AddJointActuator(std::unique_ptr<Actuator, ActuatorDeleter> a, const std::string& actuatedJointName)
+{
+    if (a == nullptr || a->getType() != ActuatorType::JOINT)
+    {
+        cCritical("Actuator does not exist or is not a joint actuator!");
+        return nullptr;
+    }
+
     for(size_t i = 0; i < jointsData_.size(); ++i)
         if(jointsData_[i].name == actuatedJointName)
         {
-            jaAttachments_.push_back(std::make_pair(a.get(), actuatedJointName));
-            actuators_.push_back(a.release());    
+            jaAttachments_.push_back(std::make_pair(static_cast<JointActuator*>(a.get()), actuatedJointName));
+            detachedActuators_.push_back(std::move(a));
+            actuators_.push_back(detachedActuators_.back().get());    
             return static_cast<JointActuator*>(actuators_.back());
         }
     return nullptr;
+}
+
+JointActuator* GeneralRobot::AddJointActuator(std::unique_ptr<Actuator> a, const std::string& actuatedJointName)
+{
+    return AddJointActuator(std::unique_ptr<Actuator, ActuatorDeleter>(a.release(), Actuator::defaultDeleter), actuatedJointName);
 }
 
 void GeneralRobot::AddToSimulation(SimulationManager* sm, const Transform& origin)

@@ -35,6 +35,7 @@ namespace sf
     //! An enum defining types of sensors.
     enum class SensorType {JOINT, LINK, VISION, OTHER};
     
+    //! Required structures.
     struct Renderable;
     
     //! An abstract class representing a sensor.
@@ -114,6 +115,9 @@ namespace sf
          \param angular output of the angular velocity of the sensor measurement frame [rad/s]
          */
         virtual void getSensorVelocity(Vector3& linear, Vector3& angular) const = 0;
+
+        //! A deleter method required for the plugin architecture.
+        static void defaultDeleter(Sensor* s);
         
     protected:
         Scalar freq_;
@@ -131,4 +135,8 @@ namespace sf
         int lookId_;
         int graObjectId_;
     };
+
+    using SensorDeleter = void(*)(Sensor*);
+    typedef Sensor* (*CreateSensorFunc)(const char*, Scalar);
+    typedef void (*DestroySensorFunc)(Sensor*);
 }

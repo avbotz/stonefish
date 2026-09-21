@@ -141,6 +141,7 @@ void Thruster::Update(Scalar dt)
             Vector3 velocity = attach_->GetLinearVelocityInLocalPoint(relPos);
             Scalar u = -thrustTrans.getBasis().getColumn(0).dot(ocn->GetFluidVelocity(thrustTrans.getOrigin()) - velocity);
             static_cast<FDThrust*>(thrustModel_.get())->SetIncomingFluidVelocity(u);
+            static_cast<FDThrust*>(thrustModel_.get())->setLiquidDensity(ocn->GetLiquid().density);
         }
         std::pair<Scalar, Scalar> out = thrustModel_->Update(omega_);
         thrust_ = out.first;
@@ -473,8 +474,7 @@ std::unique_ptr<Thruster> Thruster::Construct(std::string_view uniqueName, Const
             reverse = std::get<Scalar>(value.value);
         Scalar torqueCoeff = std::get<Scalar>(info.nodes.at("thrust_model").childNodes.at("torque_coeff").attributes.at("value").value);
         
-        thrustModel = std::make_unique<FDThrust>(forward, reverse, torqueCoeff, diameter, right, 
-            SimulationApp::GetApp()->GetSimulationManager()->GetOcean()->GetLiquid().density);
+        thrustModel = std::make_unique<FDThrust>(forward, reverse, torqueCoeff, diameter, right);
     }
     else
     {

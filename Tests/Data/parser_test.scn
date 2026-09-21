@@ -132,14 +132,14 @@
 			</thrust_model>
 		</actuator>
 
-		<sensor name="SensorPlugin" type="plugin" rate="10.0" plugin="/home/pcieslak/Libs/stonefish/build/Tests/libLinkSensorPlugin.so">
+		<sensor name="SensorPlugin" type="plugin" rate="10.0" plugin="../../build/Tests/libLinkSensorPlugin.so">
 			<link name="L2"/>
 			<origin rpy="0 0 0" xyz="0 0 0"/>
 			<specs global_frame="false"/>
 			<noise fluid_velocity="0.1 0.1 0.1"/>
 		</sensor>
 
-		<actuator name="ActuatorPlugin" type="plugin" plugin="/home/pcieslak/Libs/stonefish/build/Tests/libLinkActuatorPlugin.so">
+		<actuator name="ActuatorPlugin" type="plugin" plugin="../../build/Tests/libLinkActuatorPlugin.so">
 			<link name="L2"/>
 			<origin rpy="0 0 0" xyz="0 0 0"/>
 			<specs amplitude="1000.0" frequency="0.1"/>

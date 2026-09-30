@@ -97,6 +97,15 @@ namespace sf
         //! A method returning the type of the scalar sensor.
         ScalarSensorType GetScalarSensorType() const override;
 
+        //! A method returning the construction info for the sensor.
+        static ConstructInfo GetConstructInfo();
+
+        //! A method constructing the sensor based on info structure.
+        /*!
+         \param info a construction info structure
+        */
+        static std::unique_ptr<INS> Construct(std::string_view uniqueName, Scalar frequency, ConstructInfo& info);
+
         private:
             Scalar latitude_, longitude_, altitude_;
             Vector3 ned_;

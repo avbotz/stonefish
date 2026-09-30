@@ -106,7 +106,7 @@ It is possible to define an initial position of the joint that will be achieved 
     #include <Stonefish/actuators/Servo.h>
 
     std::unique_ptr<sf::Servo> srv = std::make_unique<sf::Servo>("Servo", 1.0, 0.5, 10.0);
-    srv->SetControlMode(sf::ServoControlMode::POSITION_CTRL);
+    srv->SetControlMode(sf::ServoControlMode::POSITION);
     srv->SetMaxVelocity(0.1);
     srv->SetDesiredPosition(0.5);
     robot->AddJointActuator(std::move(srv), "Joint1");
@@ -135,12 +135,13 @@ The link actuators are attached to the robot's links and they apply forces or to
 Push
 ----
 
-A push actuator is a virtual actuator that applies a given force to the attached body.
+A push actuator is a virtual actuator that applies a given force to the attached body. The force can be optionally limited, separately in the positive and negative direction. Both limits are given as absolute values.
 
 .. code-block:: xml
 
     <actuator name="Push" type="push">
-        <specs lower_limit="-10.0" upper_limit="10.0" inverted="false"/>
+        <specs inverted="false"/>
+        <limits max_positive_force="10.0" max_negative_force="10.0"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
         <link name="Link1"/>
     </actuator>
@@ -149,14 +150,14 @@ A push actuator is a virtual actuator that applies a given force to the attached
 
     #include <Stonefish/actuators/Push.h>
 
-    std::unique_ptr<sf::Push> push = std::make_unique<sf::Push>("Push", false, false);
-    push->SetForceLimits(-10.0, 10.0);
+    std::unique_ptr<sf::Push> push = std::make_unique<sf::Push>("Push", false);
+    push->SetForceLimits(10.0, 10.0);
     robot->AddLinkActuator(std::move(push), "Link1", sf::I4()); 
 
 Propeller
 ---------
 
-A propeller is an actuator working in atmosphere, representing an airplane propeller driven by a motor. 
+A propeller is an actuator working in atmosphere, representing an airplane propeller driven by a motor. The thrust coefficient can be optionally defined separately for the reverse direction, using the ``thrust_coeff_reverse`` attribute (by default it is equal to ``thrust_coeff``).
 
 .. code-block:: xml
 
@@ -182,7 +183,7 @@ A propeller is an actuator working in atmosphere, representing an airplane prope
 
     std::unique_ptr<sf::Propeller> propeller = std::make_unique<sf::Propeller>(
         "Prop", std::make_unique<sf::Polyhedron>("PropMesh", phy, sf::GetDataPath() + "propeller.obj", 1.0, sf::I4(), "Steel", "Red"),
-        0.5, 0.45, 0.02, 1000, true, false
+        0.5, std::make_pair(0.45, 0.45), 0.02, 1000, true, false
     );
     robot->AddLinkActuator(std::move(propeller), "Link1", sf::I4()); 
 
@@ -194,7 +195,8 @@ A simple thruster is an extension of the *push* actuator that functions only und
 .. code-block:: xml
 
     <actuator name="SimpleThruster" type="simple_thruster">
-        <specs lower_thrust_limit="-10.0" upper_thrust_limit="10.0" inverted="false"/>
+        <specs inverted="false"/>
+        <limits max_positive_thrust="10.0" max_negative_thrust="10.0"/>
         <propeller right="true">
             <mesh filename="propeller.obj" scale="1.0"/>
             <material name="Steel"/>
@@ -216,6 +218,7 @@ A simple thruster is an extension of the *push* actuator that functions only und
     std::unique_ptr<sf::SimpleThruster> thruster = std::make_unique<sf::SimpleThruster>(
         "SimpleThruster", std::make_unique<sf::Polyhedron>("PropMesh", phy, sf::GetDataPath() + "propeller.obj", 1.0, sf::I4(), "Steel", "Red"),
         true, false);
+    thruster->SetThrustLimits(10.0, 10.0);
     robot->AddLinkActuator(std::move(thruster), "Link1", sf::I4()); 
 
 Thruster
@@ -477,7 +480,8 @@ The *Stonefish* library delivers high quality, physically based rendering, to en
 
     #include <Stonefish/actuators/Light.h>
 
-    AddActuator(std::make_unique<sf::Light>("Omni", 0.2, sf::Color::RGB(0.2, 0.3, 1.0), 10000.0),
-        sf::Transform(sf::IQ(), sf::Vector3(1.0, 5.0, 2.0)));
+    std::unique_ptr<sf::Light> omni = std::make_unique<sf::Light>("Omni", 0.2, sf::Color::RGB(0.2, 0.3, 1.0), 10000.0);
+    omni->AttachToWorld(sf::Transform(sf::IQ(), sf::Vector3(1.0, 5.0, 2.0)));
+    AddActuator(std::move(omni));
     robot->AddLinkActuator(std::make_unique<sf::Light>("Spot", 0.1, 30.0, sf::Color::BlackBody(5600.0), 2000.0),
         "Link1", sf::Transform(sf::IQ(), sf::Vector3(1.0, 0.0, 0.0)));

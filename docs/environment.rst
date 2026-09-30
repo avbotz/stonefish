@@ -135,7 +135,7 @@ The following lines of code can be used to achieve the same:
     #include <Stonefish/entities/forcefields/Uniform.h>
     #include <Stonefish/entities/forcefields/Jet.h>
 
-    GetAtmosphere()->SetupSunPosition(20.0, 50.0);
+    GetAtmosphere()->SetSunPosition(20.0, 50.0);
     GetAtmosphere()->SetConditions(20.0, 101300.0, 0.5);
     GetAtmosphere()->AddVelocityField(std::make_unique<sf::Uniform>(sf::Vector3(1.0, 0.0, 0.0)));
     GetAtmosphere()->AddVelocityField(std::make_unique<sf::Jet>(sf::Vector3(0.0, 0.0, 3.0), sf::Vector3(0.0, 1.0, 0.0), 0.2, 2.0));

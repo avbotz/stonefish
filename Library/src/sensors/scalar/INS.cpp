@@ -30,6 +30,7 @@
 #include "core/NED.h"
 #include "entities/MovingEntity.h"
 #include "sensors/Sample.h"
+#include "core/DeviceFactory.h"
 
 namespace sf
 {
@@ -256,5 +257,107 @@ std::vector<Renderable> INS::Render()
     }
     return items;
 }
+
+ConstructInfo INS::getConstructInfo()
+{
+    ConstructInfo info;
+    ConstructInfoNode node;
+
+    // History
+    node.optional = true;
+    node.attributes.insert({"samples", {ConstructInfoValueType::INT, false}});
+    info.nodes.insert({"history", node});
+
+    // External sensors
+    node.attributes.clear(); // Clear temporary
+    node.optional = true;
+    node.attributes.insert({"dvl", {ConstructInfoValueType::STRING, true}});
+    node.attributes.insert({"pressure", {ConstructInfoValueType::STRING, true}});
+    node.attributes.insert({"gps", {ConstructInfoValueType::STRING, true}});
+    info.nodes.insert({"external_sensors", node});
+
+    // Output frame
+    node.attributes.clear();
+    node.optional = true;
+    node.attributes.insert({"T", {ConstructInfoValueType::TRANSFORM, true}});
+    info.nodes.insert({"output_frame", node});
+
+    // Range
+    node.attributes.clear();
+    node.optional = true;
+    node.attributes.insert({"angular_velocity", {ConstructInfoValueType::VECTOR3, true}});
+    node.attributes.insert({"linear_acceleration", {ConstructInfoValueType::VECTOR3, true}});
+    info.nodes.insert({"range", node});
+
+    // Noise
+    node.attributes.clear();
+    node.optional = true;
+    node.attributes.insert({"angular_velocity", {ConstructInfoValueType::VECTOR3, true}});
+    node.attributes.insert({"linear_acceleration", {ConstructInfoValueType::VECTOR3, true}});
+    info.nodes.insert({"noise", node});
+
+    return info;
+}
+
+std::unique_ptr<INS> INS::Construct(const std::string& uniqueName, Scalar frequency, ConstructInfo& info)
+{
+    // History (optional)
+    int history = -1;
+    const ConstructInfoValue& samples = info.nodes.at("history").attributes.at("samples");
+    if (samples.valid)
+        history = std::get<int>(samples.value);
+
+    // Create sensor
+    std::unique_ptr<INS> sensor = std::make_unique<INS>(uniqueName, frequency, history);
+
+    // External sensors (optional) - names are relative to the namespace of the INS
+    std::string prefix = "";
+    size_t sep = uniqueName.rfind('/');
+    if (sep != std::string::npos)
+        prefix = uniqueName.substr(0, sep + 1);
+
+    const ConstructInfoNode& external = info.nodes.at("external_sensors");
+    const ConstructInfoValue& dvl = external.attributes.at("dvl");
+    if (dvl.valid)
+        sensor->ConnectDVL(prefix + std::get<std::string>(dvl.value));
+    const ConstructInfoValue& pressure = external.attributes.at("pressure");
+    if (pressure.valid)
+        sensor->ConnectPressure(prefix + std::get<std::string>(pressure.value));
+    const ConstructInfoValue& gps = external.attributes.at("gps");
+    if (gps.valid)
+        sensor->ConnectGPS(prefix + std::get<std::string>(gps.value));
+
+    // Output frame (optional)
+    const ConstructInfoValue& outputFrame = info.nodes.at("output_frame").attributes.at("T");
+    if (outputFrame.valid)
+        sensor->setOutputFrame(std::get<Transform>(outputFrame.value));
+
+    // Range (optional)
+    Vector3 angularVelocity = VMAX();
+    Vector3 linearAcceleration = VMAX();
+    const ConstructInfoNode& range = info.nodes.at("range");
+    const ConstructInfoValue& rangeAv = range.attributes.at("angular_velocity");
+    if (rangeAv.valid)
+        angularVelocity = std::get<Vector3>(rangeAv.value);
+    const ConstructInfoValue& rangeLa = range.attributes.at("linear_acceleration");
+    if (rangeLa.valid)
+        linearAcceleration = std::get<Vector3>(rangeLa.value);
+    sensor->setRange(angularVelocity, linearAcceleration);
+
+    // Noise (optional) - only applied when defined, so the INS stays noise-free by default
+    const ConstructInfoNode& noise = info.nodes.at("noise");
+    const ConstructInfoValue& noiseAv = noise.attributes.at("angular_velocity");
+    const ConstructInfoValue& noiseLa = noise.attributes.at("linear_acceleration");
+    if (noiseAv.valid || noiseLa.valid)
+    {
+        angularVelocity = noiseAv.valid ? std::get<Vector3>(noiseAv.value) : V0();
+        linearAcceleration = noiseLa.valid ? std::get<Vector3>(noiseLa.value) : V0();
+        sensor->setNoise(angularVelocity, linearAcceleration);
+    }
+
+    return sensor;
+}
+
+REGISTER_SENSOR("ins", INS)
 
 }

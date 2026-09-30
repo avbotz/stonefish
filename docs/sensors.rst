@@ -15,6 +15,10 @@ A rich set of sensor simulations is available in the *Stonefish* library, includ
 
     When creating sensors in the XML syntax, their definitions have to always be located inside the definition of the robot/body that the sensor is to be attached to. In case of vision sensors attached to the world, the definitions should be located at the root level.
 
+.. warning::
+
+    Attributes defining a separate value for each axis (e.g., ``angular_velocity`` or ``linear_acceleration``) have to be given as three values ``"x y z"``, even if all values are the same. A single value is not accepted: a required attribute causes a parsing error and an optional one is ignored.
+
 Common properties
 =================
 
@@ -115,7 +119,7 @@ The force-torque sensor is a 6-axis sensor located in a specified joint. It meas
 
 .. code-block:: xml
 
-    <sensor name="FT" rate="100.0" type="forcetorque">
+    <sensor name="FT" rate="100.0" type="force_torque">
         <range force="10.0 10.0 100.0" torque="1.0 1.0 2.0"/>
         <noise force="0.5" torque="0.05"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
@@ -169,7 +173,7 @@ The accelerometer measures the linear acceleration of the link, along three perp
 
     <sensor name="Acc" rate="10.0" type="accelerometer">
         <range linear_acceleration="1000.0 1000.0 2000.0"/>
-        <noise linear_acceleration="0.1"/>
+        <noise linear_acceleration="0.1 0.1 0.1"/>
         <history samples="1"/>
         <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
         <link name="Link1"/>
@@ -182,7 +186,7 @@ The accelerometer measures the linear acceleration of the link, along three perp
     std::unique_ptr<sf::Accelerometer> acc = std::make_unique<sf::Accelerometer>("Acc", 10.0, 1);
     acc->setRange(sf::Vector3(1000.0, 1000.0, 2000.0));
     acc->setNoise(sf::Vector3(0.1, 0.1, 0.1));
-    robot->AddLinkSensor(std:::move(acc), "Link1", sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(0.1, 0.0, 0.0));
+    robot->AddLinkSensor(std::move(acc), "Link1", sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(0.1, 0.0, 0.0)));
 
 Gyroscope
 ---------
@@ -191,9 +195,9 @@ The gyroscope measures the angular velocities of the link, around three perpendi
 
 .. code-block:: xml
 
-    <sensor name="Gyro" rate="10.0" type="gyro">
+    <sensor name="Gyro" rate="10.0" type="gyroscope">
         <range angular_velocity="100.0 100.0 200.0"/>
-        <noise angular_velocity="0.05" bias="0.003"/>
+        <noise angular_velocity="0.05 0.05 0.05" bias="0.003 0.003 0.003"/>
         <history samples="1"/>
         <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
         <link name="Link1"/>
@@ -206,7 +210,7 @@ The gyroscope measures the angular velocities of the link, around three perpendi
     std::unique_ptr<sf::Gyroscope> gyro = std::make_unique<sf::Gyroscope>("Gyro", 10.0, 1);
     gyro->setRange(sf::Vector3(100.0, 100.0, 200.0));
     gyro->setNoise(sf::Vector3(0.05, 0.05, 0.05), sf::Vector3(0.003, 0.003, 0.003));
-    robot->AddLinkSensor(std::move(gyro), "Link1", sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(0.1, 0.0, 0.0));
+    robot->AddLinkSensor(std::move(gyro), "Link1", sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(0.1, 0.0, 0.0)));
     
 IMU
 ---
@@ -216,8 +220,8 @@ The inertial measurement unit (IMU) measures the orientation, angular velocities
 .. code-block:: xml
 
     <sensor name="IMU" rate="10.0" type="imu">
-        <range angular_velocity="10.0 10.0 5.0" linear_acceleration="10.0"/>
-        <noise angle="0.1 0.1 0.5" angular_velocity="0.05" yaw_drift="0.001" linear_acceleration="0.1"/>
+        <range angular_velocity="10.0 10.0 5.0" linear_acceleration="10.0 10.0 10.0"/>
+        <noise angle="0.1 0.1 0.5" angular_velocity="0.05 0.05 0.05" yaw_drift="0.001" linear_acceleration="0.1 0.1 0.1"/>
         <history samples="1"/>
         <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
         <link name="Link1"/>
@@ -230,7 +234,7 @@ The inertial measurement unit (IMU) measures the orientation, angular velocities
     std::unique_ptr<sf::IMU> imu = std::make_unique<sf::IMU>("IMU", 10.0, 1);
     imu->setRange(sf::Vector3(10.0, 10.0, 5.0), sf::Vector3(10.0, 10.0, 10.0));
     imu->setNoise(sf::Vector3(0.1, 0.1, 0.5), sf::Vector3(0.05, 0.05, 0.05), 0.001, sf::Vector3(0.1, 0.1, 0.1));
-    robot->AddLinkSensor(std::move(imu), "Link1", sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(0.1, 0.0, 0.0));
+    robot->AddLinkSensor(std::move(imu), "Link1", sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(0.1, 0.0, 0.0)));
 
 Odometry
 --------
@@ -333,7 +337,7 @@ The Doppler velocity log (DVL) is a classic marine craft sensor, used for measur
     <sensor name="DVL" rate="10.0" type="dvl">
         <specs beam_angle="30.0" beam_positive_z="false"/>
         <range velocity="10.0 10.0 5.0" altitude_min="0.5" altitude_max="50.0"/>
-        <water_layer minimum_layer_size="10.0" boundary_near="10.0" boundary_far="30.0"/>
+        <water_layer minimum_layer_thickness="10.0" boundary_near="10.0" boundary_far="30.0"/>
         <noise velocity_percent= "0.3" velocity="0.1" altitude="0.03" water_velocity_percent="0.1" water_velocity="0.1"/>
         <history samples="1"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
@@ -350,32 +354,37 @@ The Doppler velocity log (DVL) is a classic marine craft sensor, used for measur
     dvl->setNoise(0.3, 0.1, 0.03, 0.1, 0.1);
     robot->AddLinkSensor(std::move(dvl), "Link1", sf::I4());
 
-.. Inertial Navigation System (INS)
-.. --------------------------------
+Inertial Navigation System (INS)
+--------------------------------
 
-.. The inertial navigation system is an advanced navigation device combining readings from its high accuracy on-board gyroscopes and accelerometers with measurement from external sensors like DVL or GPS. Each measurement is a full set of naviation data, in the body frame, the NED frame, and the global frame. This is a preliminary implementation not including the EKF inside the device but only a simple constant acceleration prediction model.
+The inertial navigation system is an advanced navigation device combining readings from its high accuracy on-board gyroscopes and accelerometers with measurement from external sensors like DVL or GPS. Each measurement is a full set of naviation data, in the body frame, the NED frame, and the global frame. This is a preliminary implementation not including the EKF inside the device but only a simple constant acceleration prediction model.
 
-.. .. code-block:: xml
+The external sensors are optional and are referenced by their names inside the same robot, i.e., without the robot name prefix (``dvl="dvl"`` in robot ``Robot1`` connects to ``Robot1/dvl``). The output frame, defined relative to the sensor frame, is the frame in which the navigation data is reported. The range and the standard deviation of the inertial measurements can be defined for each axis separately (as three values ``"x y z"``). If the ``noise`` element is not defined, the measurements are noise-free.
 
-..     <sensor name="INS" rate="100.0" type="ins">
-..         <output_frame rpy="0.0 0.0 0.0" xyz="-0.2 -0.4 0.3"/>
-..         <noise angular_velocity="0.00001745" linear_acceleration="0.00005"/>
-..         <external_sensors dvl="dvl" gps="gps" pressure="pressure"/>
-..         <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
-..         <link name="Link1"/>
-..     </sensor>
+.. code-block:: xml
 
-.. .. code-block:: cpp
+    <sensor name="INS" rate="100.0" type="ins">
+        <external_sensors dvl="dvl" gps="gps" pressure="pressure"/>
+        <output_frame xyz="-0.2 -0.4 0.3" rpy="0.0 0.0 0.0"/>
+        <range angular_velocity="10.0 10.0 5.0" linear_acceleration="10.0 10.0 10.0"/>
+        <noise angular_velocity="0.00001745 0.00001745 0.00001745" linear_acceleration="0.00005 0.00005 0.00005"/>
+        <history samples="1"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+        <link name="Link1"/>
+    </sensor>
 
-..     #include <Stonefish/sensors/scalar/INS.h>
+.. code-block:: cpp
 
-..     std::unique_ptr<sf::INS> ins = std::make_unique<sf::INS>("INS", 100.0, 1);
-..     ins->setOutputFrame(sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(-0.2, -0.4, 0.3)));
-..     ins->setNoise(sf::Vector3(0.00001745, 0.00001745, 0.00001745), sf::Vector3(0.00005, 0.00005, 0.00005));
-..     ins->ConnectDVL(robot->getName() + "/dvl");
-..     ins->ConnectGPS(robot->getName() + "/gps");
-..     ins->ConnectPressure(robot->getName() + "/pressure");
-..     robot->AddLinkSensor(std::move(ins), "Link1", sf::I4());
+    #include <Stonefish/sensors/scalar/INS.h>
+
+    std::unique_ptr<sf::INS> ins = std::make_unique<sf::INS>("INS", 100.0, 1);
+    ins->setOutputFrame(sf::Transform(sf::Quaternion(0.0, 0.0, 0.0), sf::Vector3(-0.2, -0.4, 0.3)));
+    ins->setRange(sf::Vector3(10.0, 10.0, 5.0), sf::Vector3(10.0, 10.0, 10.0));
+    ins->setNoise(sf::Vector3(0.00001745, 0.00001745, 0.00001745), sf::Vector3(0.00005, 0.00005, 0.00005));
+    ins->ConnectDVL(robot->getName() + "/dvl");
+    ins->ConnectGPS(robot->getName() + "/gps");
+    ins->ConnectPressure(robot->getName() + "/pressure");
+    robot->AddLinkSensor(std::move(ins), "Link1", sf::I4());
 
 Profiler
 --------
@@ -423,7 +432,7 @@ The output of the multibeam is a planar distance map, in a cylindrical coordinat
 
     #include <Stonefish/sensors/scalar/Multibeam.h>
 
-    std::unique_ptr<sf::Multibeam> mb = std:make_unique<sf::Multibeam>("Multibeam", 120.0, 128, 1.0, 1);
+    std::unique_ptr<sf::Multibeam> mb = std::make_unique<sf::Multibeam>("Multibeam", 120.0, 128, 1.0, 1);
     mb->setRange(0.5, 50.0);
     mb->setNoise(0.1);
     robot->AddLinkSensor(std::move(mb), "Link1", sf::I4());
@@ -487,7 +496,7 @@ The depth camera captures a linear depth image. The output image is a grayscale 
 
 .. code-block:: xml
 
-    <sensor name="Dcam" rate="5.0" type="depthcamera">
+    <sensor name="Dcam" rate="5.0" type="depth_camera">
         <specs resolution_x="800" resolution_y="600" horizontal_fov="60.0" depth_min="0.2" depth_max="10.0"/>
         <noise depth="0.02"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
@@ -510,7 +519,7 @@ The output of the sensor is an array of events, together with their polarity and
 
 .. code-block:: xml
     
-    <sensor name="EBCCam" type="ebc" rate="5.0">
+    <sensor name="EBCCam" type="event_based_camera" rate="5.0">
         <specs resolution_x="800" resolution_y="600" horizontal_fov="60.0"
             contrast_threshold_pos="0.1" contrast_threshold_neg="0.15" refractory_period_ns="100"/>
         <noise contrast_threshold_pos="0.01" contrast_threshold_neg="0.01"/>
@@ -533,7 +542,7 @@ The thermal camera simulates an imaging device capable of capturing images in th
 
 .. code-block:: xml
 
-    <sensor name="Tcam" rate="5.0" type="thermalcamera">
+    <sensor name="Tcam" rate="5.0" type="thermal_camera">
         <specs resolution_x="800" resolution_y="600" horizontal_fov="60.0" temperature_min="-10.0" temperature_max="100.0"/>
         <noise temperature="0.2"/>
         <display colormap="jet" temperature_min="5.0" temperature_max="50.0"/>
@@ -557,7 +566,7 @@ The optical-flow camera is a virutal imaging device that captures the velocities
 
 .. code-block:: xml
 
-    <sensor name="OfCam" rate="5.0" type="opticalflow">
+    <sensor name="OfCam" rate="5.0" type="optical_flow">
         <specs resolution_x="800" resolution_y="600" horizontal_fov="60.0"/>
         <noise velocity_x="10.0" velocity_y="10.0"/>
         <display velocity_max="500.0"/>
@@ -617,7 +626,8 @@ When the output format is missing the sensor defaults to 8-bit unsigned integer.
 
     #include <Stonefish/sensors/vision/FLS.h>
 
-    std::unique_ptr<sf::FLS> fls = std::make_unique<sf::FLS>("FLS", 512, 500, 120.0, 30.0, 0.5, 10.0, sf::ColorMap::HOT, sf::SonarOutputFormat::U16);
+    std::unique_ptr<sf::FLS> fls = std::make_unique<sf::FLS>("FLS", 512, 500, 120.0, 30.0, 0.5, 10.0, sf::SonarOutputFormat::U16);
+    fls->setDisplaySettings(sf::ColorMap::HOT);
     fls->setGain(1.1);
     fls->setNoise(0.01, 0.02);
     robot->AddVisionSensor(std::move(fls), "Link1", sf::I4());
@@ -648,7 +658,8 @@ The output data format can be set in the same way as for the FLS.
 
     #include <Stonefish/sensors/vision/MSIS.h>
 
-    std::unique_ptr<sf::MSIS> msis = std::make_unique<sf::MSIS>("MSIS", 0.25, 500, 2.0, 30.0, -50.0, 50.0, 0.5, 10.0, sf::ColorMap::HOT);
+    std::unique_ptr<sf::MSIS> msis = std::make_unique<sf::MSIS>("MSIS", 0.25, 500, 2.0, 30.0, -50.0, 50.0, 0.5, 10.0);
+    msis->setDisplaySettings(sf::ColorMap::HOT);
     msis->setGain(1.5);
     msis->setNoise(0.02, 0.03);
     robot->AddVisionSensor(std::move(msis), "Link1", sf::I4());
@@ -675,7 +686,8 @@ The output data format can be set in the same way as for the FLS.
 
     #include <Stonefish/sensors/vision/SSS.h>
 
-    std::unique_ptr<sf::SSS> sss = std::make_unique<sf::SSS>("SSS", 500, 400, 50.0, 2.0, 60.0, 1.0, 100.0, sf::ColorMap::HOT);
+    std::unique_ptr<sf::SSS> sss = std::make_unique<sf::SSS>("SSS", 500, 400, 50.0, 2.0, 60.0, 1.0, 100.0);
+    sss->setDisplaySettings(sf::ColorMap::HOT);
     sss->setGain(1.2);
     sss->setNoise(0.02, 0.04);
     robot->AddVisionSensor(std::move(sss), "Link1", sf::I4());

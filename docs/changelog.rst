@@ -19,6 +19,11 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - Disabled selection of static planes in the 3D view
 - Fixed memory leaks mainly caused by contact processing
 - Fixed segmentation fault on exit caused by particle systems
+- *Renamed XML sensor types:* ``gyro`` → ``gyroscope``, ``forcetorque`` → ``force_torque``, ``depthcamera`` → ``depth_camera``, ``thermalcamera`` → ``thermal_camera``, ``opticalflow`` → ``optical_flow``, ``eventbasedcamera``/``ebc`` → ``event_based_camera``, ``multibeam2d`` → ``lidar``
+- *Changed XML USBL types:* ``usbl`` now selects the realistic model (previously ``usbl2``), the simple model is ``simple_usbl``
+- *Moved force/thrust limits of the push and simple thruster actuators to a* ``limits`` *element, defined as absolute values for each direction*
+- *Renamed XML attributes:* ``minimum_layer_size`` → ``minimum_layer_thickness`` (DVL), ``thrust_coeff_backward`` → ``thrust_coeff_reverse`` (propeller)
+- *Per-axis sensor attributes have to be defined as three values in XML*
 
 1.5
 ===

@@ -60,10 +60,18 @@ USBL
 The ultra short baseline (USBL) is a device based on a tightly packed array of underwater acoustic transducers. It shares the same properties as the acoustic modem and extends upon them.
 It can be used for underwater communication as well as for localization of the signal source in 3D space. User can optionally define the standard deviation of the measurements of slant range, horizontal angle and vertical angle. Moreover, the resolution of the range and angle measurements can be set.
 Another feature of the USBL implementation is an automatic ping function used to update the measurements at a specified rate.
+Two models of the USBL are available: a simple model (``simple_usbl``), which corrupts the ideal measurements with noise of the specified standard deviation, and a realistic model (``usbl``), which simulates the underlying time-of-flight and phase measurements.
+
+.. note::
+
+    In previous versions of the library ``type="usbl"`` selected the simple model and ``type="usbl2"`` the realistic one. Scenario files using the simple model have to be updated to ``type="simple_usbl"``, otherwise they will silently get the realistic model.
+
+Simple USBL
+-----------
 
 .. code-block:: xml    
 
-    <comm name="USBL" device_id="5" type="usbl">
+    <comm name="USBL" device_id="5" type="simple_usbl">
         <specs min_vertical_fov="0.0" max_vertical_fov="220.0" range="1000.0"/>
         <connect device_id="9" occlusion_test="false"/>
         <autoping rate="1.0"/>
@@ -75,14 +83,41 @@ Another feature of the USBL implementation is an automatic ping function used to
 
 .. code-block:: cpp
 
-    #include <Stonefish/comms/USBL.h>
+    #include <Stonefish/comms/SimpleUSBL.h>
 
-    std::unique_ptr<sf::USBL> usbl = std::make_unique<sf::USBL>("USBL", 5, 0.0, 220.0, 1000.0);
+    std::unique_ptr<sf::SimpleUSBL> usbl = std::make_unique<sf::SimpleUSBL>("USBL", 5, 0.0, 220.0, 1000.0);
     usbl->Connect(9);
     usbl->EnableAutoPing(1.0);
     usbl->setOcclusionTest(false);
     usbl->setNoise(0.05, 0.2, 0.5);
     usbl->setResolution(0.1, 0.1);
+    robot->AddComm(std::move(usbl), "Link1", sf::I4());
+
+Realistic USBL
+--------------
+
+The realistic USBL model requires the carrier frequency of the acoustic signal [Hz] and the baseline, i.e., the distance between the transducers forming one pair [m]. The optional noise is defined as the standard deviation of the time-of-flight measurement [s], the sound velocity in water [m/s], the phase measurement and the depth measurement [m], as well as the error in the baseline [m].
+
+.. code-block:: xml
+
+    <comm name="USBL" device_id="5" type="usbl">
+        <specs min_vertical_fov="0.0" max_vertical_fov="220.0" range="1000.0" frequency="25000.0" baseline="0.05"/>
+        <connect device_id="9" occlusion_test="false"/>
+        <autoping rate="1.0"/>
+        <noise time_of_flight="0.00001" sound_velocity="1.0" phase="0.01" depth="0.1" baseline_error="0.0001"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+        <link name="Link1"/>
+    </comm>
+
+.. code-block:: cpp
+
+    #include <Stonefish/comms/RealUSBL.h>
+
+    std::unique_ptr<sf::RealUSBL> usbl = std::make_unique<sf::RealUSBL>("USBL", 5, 0.0, 220.0, 1000.0, 25000.0, 0.05);
+    usbl->Connect(9);
+    usbl->EnableAutoPing(1.0);
+    usbl->setOcclusionTest(false);
+    usbl->setNoise(0.00001, 1.0, 0.01, 0.0001, 0.1);
     robot->AddComm(std::move(usbl), "Link1", sf::I4());
 
 Optical modem

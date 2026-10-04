@@ -26,6 +26,7 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - *Moved force/thrust limits of the push and simple thruster actuators to a* ``limits`` *element, defined as absolute values for each direction*
 - *Renamed XML attributes:* ``minimum_layer_size`` → ``minimum_layer_thickness`` (DVL), ``thrust_coeff_backward`` → ``thrust_coeff_reverse`` (propeller)
 - *Per-axis sensor attributes have to be defined as three values in XML*
+- Fixed aerodynamic drag (linear instead of quadratic)
 - Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)
 

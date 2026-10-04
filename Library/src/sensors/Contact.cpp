@@ -98,12 +98,20 @@ void Contact::AddContactPoint(const btPersistentManifold* manifold, bool swapped
         ContactPoint p;
         p.locationA = locationA;
         p.locationB = swapped ? mp.getPositionWorldOnA() : mp.getPositionWorldOnB();
-        ContactInfo* cInfo = static_cast<ContactInfo*>(mp.m_userPersistentData);
-        p.slippingVelocityA = (swapped ? Scalar(-1.) : Scalar(1.)) * cInfo->slip;
+        //Custom data is only attached to contact points for which the material interaction
+        //could be resolved, so it is absent for the entity types skipped by the material
+        //combiner callback (animated entities, cables) and has to be checked.
+        const ContactInfo* cInfo = static_cast<const ContactInfo*>(mp.m_userPersistentData);
+        if(cInfo != nullptr)
+            p.slippingVelocityA = (swapped ? Scalar(-1.) : Scalar(1.)) * cInfo->slip;
+        else
+            p.slippingVelocityA.setZero();
         p.normalForceA = normalForceA;
         AddContactPoint(p);
         ++added;
     }
+    //Points dropped from a limited history do not count towards the new ones
+    if(added > points_.size()) added = points_.size();
     pointsLastBeg_ = points_.end()-added; // Save iterator to the beginning of new points
 }
 

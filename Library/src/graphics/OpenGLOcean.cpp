@@ -396,6 +396,7 @@ OpenGLOcean::OpenGLOcean(GLfloat size)
 
     rippleTime_ = 0.f;
     causticsUniform_ = false;
+    causticsEnabled_ = true;
     setRipples(0.05f); //Light breeze
     GenerateCaustics(glm::vec3(0.f,0.f,-1.f), 0.f);
 }
@@ -453,6 +454,16 @@ GLfloat OpenGLOcean::getRipples()
     return rippleSlope_;
 }
 
+void OpenGLOcean::setCaustics(bool enabled)
+{
+    causticsEnabled_ = enabled;
+}
+
+bool OpenGLOcean::getCausticsEnabled()
+{
+    return causticsEnabled_;
+}
+
 void OpenGLOcean::GenerateCaustics(glm::vec3 sunDirection, GLfloat dt)
 {
     rippleTime_ += dt;
@@ -480,7 +491,7 @@ void OpenGLOcean::GenerateCaustics(glm::vec3 sunDirection, GLfloat dt)
     //2. Caustics maps
     OpenGLState::BindFramebuffer(causticsFBO_);
     OpenGLState::Viewport(0, 0, CAUSTICS_TEX_SIZE, CAUSTICS_TEX_SIZE);
-    bool uniform = waves.empty() || sunDirection.z > -0.01f; //Flat surface or sun below horizon
+    bool uniform = !causticsEnabled_ || waves.empty() || sunDirection.z > -0.01f; //Disabled, flat surface or sun below horizon
     if(uniform)
     {
         if(!causticsUniform_) //Uniform light intensity

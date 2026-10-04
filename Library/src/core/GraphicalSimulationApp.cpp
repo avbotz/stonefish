@@ -751,7 +751,7 @@ void GraphicalSimulationApp::DoHUD()
         
         bool oceanOn = ocn->isRenderable();
         
-        gui_->DoPanel(10.f, offset, 160.f, oceanOn ? 112.f : 33.f);
+        gui_->DoPanel(10.f, offset, 160.f, oceanOn ? 141.f : 33.f);
         offset += 5.f;
        
         id.owner = 2;
@@ -768,6 +768,10 @@ void GraphicalSimulationApp::DoHUD()
             
             id.item = 2;
             ocn->setParticles(gui_->DoCheckBox(id, 19.f, offset, 110.f, ocn->hasParticles(), "Suspended particles"));
+            offset += 29.f;
+
+            id.item = 3;
+            ocn->setCaustics(gui_->DoCheckBox(id, 19.f, offset, 110.f, ocn->hasCaustics(), "Caustics"));
             offset += 29.f;
         }
 

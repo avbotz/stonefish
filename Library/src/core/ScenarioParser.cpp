@@ -652,6 +652,14 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         }
         sm_->getOcean()->setParticles(particles);
 
+        //Caustics
+        bool caustics = true;
+        if((item = ocean->FirstChildElement("caustics")) != nullptr)
+        {
+            item->QueryAttribute("enabled", &caustics);
+        }
+        sm_->getOcean()->setCaustics(caustics);
+
         //Currents
         if((item = ocean->FirstChildElement("current")) != nullptr)
         {

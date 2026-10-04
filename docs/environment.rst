@@ -51,7 +51,7 @@ Ocean optics
 As mentioned before, underwater rendering plays an important role in realistic simulation of optical sensors. The *Stonefish* library implements optical effects encountered in ocean waters like light absorption, out-scattering, and in-scattering, also called the airlight.
 The absorption and scattering coefficeints are computed for three wavelengths, corresponding to the red, green and blue channels of the rendering pipeline, based on the Jerlov measurements covering wide spectrum of the coastal water types. The temperature of the water defines its viscosity, used to compute the skin friction of bodies. The water quality is defined with a single parameter ranging from 0.0 to 1.0, where the lower limit corresponds to the Jerlov type I water and the upper limit represents the Jerlov type 9C water.
 
-The sun light reaching underwater objects is refracted and partially reflected at the surface (Fresnel equations), which changes its direction, intensity and the direction of the cast shadows. Its intensity is modulated by caustics, computed by tracing the light refracted by the ripples down to a series of depths. Seen from under water, the surface shows the sky through the Snell's window and reflects the underwater scene outside of it (total internal reflection). The mirror image of the scene is rendered for flat ocean surfaces.
+The sun light reaching underwater objects is refracted and partially reflected at the surface (Fresnel equations), which changes its direction, intensity and the direction of the cast shadows. Its intensity is modulated by caustics, computed by tracing the light refracted by the ripples down to a series of depths. The caustics are enabled by default and can be disabled from the scenario file (``<caustics enabled="false"/>``), the standard GUI or the code (``Ocean::setCaustics()``), in which case the refracted sun light reaches the bottom uniformly. Seen from under water, the surface shows the sky through the Snell's window and reflects the underwater scene outside of it (total internal reflection). The mirror image of the scene is rendered for flat ocean surfaces.
 
 Suspended particles
 -------------------
@@ -69,6 +69,7 @@ The ocean definitions have to be placed inside the environment node of the scena
         <water density="1031.0" jerlov="0.2" temperature="15.0"/>
         <waves height="0.0" ripples="0.05"/>
         <particles enabled="true"/>
+        <caustics enabled="true"/>
         <current type="uniform">
             <velocity xyz="1.0 0.0 0.0"/>
         </current>
@@ -90,6 +91,7 @@ The following lines of code can be used to achieve the same:
     EnableOcean(0.0, getMaterialManager()->getFluid("OceanWater"));
     getOcean()->setWaterType(0.2);
     getOcean()->setRipples(0.05);
+    getOcean()->setCaustics(true);
     getOcean()->SetConditions(15.0);
     getOcean()->AddVelocityField(std::make_unique<sf::Uniform>(sf::Vector3(1.0, 0.0, 0.0)));
     getOcean()->AddVelocityField(std::make_unique<sf::Jet>(sf::Vector3(0.0, 0.0, 3.0), sf::Vector3(0.0, 1.0, 0.0), 0.2, 2.0));

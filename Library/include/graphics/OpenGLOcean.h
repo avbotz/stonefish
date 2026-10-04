@@ -202,6 +202,15 @@ namespace sf
         //! A method returning the root mean square slope of capillary ripples.
         GLfloat getRipples();
 
+        //! A method to set if the caustics should be rendered (uniform sun light under water otherwise).
+        /*!
+         \param enabled a flag specifying if the caustics should be rendered
+         */
+        void setCaustics(bool enabled);
+
+        //! A method informing if the caustics are enabled.
+        bool getCausticsEnabled();
+
         //! A method to set the type of ocean water.
         /*!
          \param t type of water
@@ -281,6 +290,7 @@ namespace sf
         GLfloat rippleSlope_;
         GLfloat rippleTime_;
         bool causticsUniform_;
+        bool causticsEnabled_;
         
     private:
         std::vector<GLfloat> ComputeButterflyLookupTable(unsigned int size, unsigned int passes);

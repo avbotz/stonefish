@@ -65,6 +65,8 @@
 #define TEX_MAT_ALBEDO          ((GLint)15)
 #define TEX_MAT_NORMAL          ((GLint)16)
 #define TEX_MAT_TEMPERATURE     ((GLint)17)
+#define TEX_OCEAN_CAUSTICS      ((GLint)18)
+#define TEX_OCEAN_RIPPLES       ((GLint)19)
 //#define TEX_POINT_SHADOW        ((GLint)X) 
 //#define TEX_POINT_DEPTH         ((GLint)X)
 

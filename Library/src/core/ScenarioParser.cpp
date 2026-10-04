@@ -614,11 +614,15 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         log.Print(MessageType::INFO, "Ocean simulation enabled.");
         //Basic setup
         Scalar wavesHeight(0);
+        Scalar ripples(0.05);
         Scalar waterDensity(1000);
         Scalar waterTemperature(15.0);
         Scalar jerlov(0.2);
 
-        if((item = ocean->FirstChildElement("waves")) != nullptr
+        if((item = ocean->FirstChildElement("waves")) != nullptr)
+            item->QueryAttribute("ripples", &ripples); //Optional
+
+        if(item != nullptr
             && item->QueryAttribute("height", &wavesHeight) == XML_SUCCESS
             && wavesHeight > Scalar(0))
             log.Print(MessageType::INFO, "Using ocean surface with geometrical waves.");
@@ -637,6 +641,7 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         std::string waterName = sm_->getMaterialManager()->CreateFluid("Water", waterDensity, waterViscosity, 1.33); 
         sm_->EnableOcean(wavesHeight, sm_->getMaterialManager()->getFluid(waterName));
         sm_->getOcean()->setWaterType(jerlov);
+        sm_->getOcean()->setRipples(ripples);
         sm_->getOcean()->SetConditions(waterTemperature);
         
         //Particles
@@ -1852,11 +1857,6 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
             comp->AddInternalPart(std::move(part), partOrigin, alwaysVisible);
             item = item->NextSiblingElement("internal_part");
         }
-        
-        solid = std::move(comp);
-    }
-    else
-    {
 
         //Added mass of the whole body (e.g. identified experimentally), overriding the sum of the parts
         if((item = element->FirstChildElement("hydrodynamics")) != nullptr)
@@ -1870,6 +1870,11 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
                 ParseVector(xyz, aI);
             comp->SetAddedMass(aM, aI);
         }
+        
+        solid = std::move(comp);
+    }
+    else
+    {
         //---- Common ----
         const char* mat = nullptr;
         const char* look = nullptr;
@@ -1881,13 +1886,13 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
         Vector3 I;
         Vector3 Cf(-1,-1,-1);
         Vector3 Cd(-1,-1,-1);    
+        Vector3 aM(-1,-1,-1);
+        Vector3 aI(-1,-1,-1);
         bool cgok;
         unsigned int uvMode = 0;
         float uvScale = 1.f;
         
         //Material
-        Vector3 aM(-1,-1,-1);
-        Vector3 aI(-1,-1,-1);
         if((item = element->FirstChildElement("material")) == nullptr
             || item->QueryStringAttribute("name", &mat) != XML_SUCCESS)
         {
@@ -1925,15 +1930,15 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
                 ParseVector(xyz, Cf);
             if(item->QueryStringAttribute("quadratic_drag", &xyz) == XML_SUCCESS)
                 ParseVector(xyz, Cd);  
+            if(item->QueryStringAttribute("added_mass", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aM);
+            if(item->QueryStringAttribute("added_inertia", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aI);
         } 
 
         //Origin    
         if(typeStr != "model")
         {
-            if(item->QueryStringAttribute("added_mass", &xyz) == XML_SUCCESS)
-                ParseVector(xyz, aM);
-            if(item->QueryStringAttribute("added_inertia", &xyz) == XML_SUCCESS)
-                ParseVector(xyz, aI);
             if((item = element->FirstChildElement("origin")) == nullptr || !ParseTransform(item, origin))
             {
                 log.Print(MessageType::ERROR, "Definition of origin frame of rigid body '%s' missing!", solidName.c_str());
@@ -2093,12 +2098,12 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
             solid->SetArbitraryPhysicalProperties(newMass, newI, newCg);
         }
         solid->SetHydrodynamicCoefficients(Cd, Cf);
+        solid->SetAddedMass(aM, aI);
     }
 
     //Contact properties (soft contact)
     if(!compoundPart)
     {
-        solid->SetAddedMass(aM, aI);
         Scalar contactK;
         Scalar contactD;
         

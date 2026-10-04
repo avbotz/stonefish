@@ -24,3 +24,8 @@ vec3 ShadingModel(vec3 N, vec3 V, vec3 L, vec3 Lcolor, vec3 albedo)
 	return (0.5 + 0.5*abs(dot(V, L))) * albedo * Lcolor;
 }
 
+vec3 AmbientShadingModel(vec3 N, vec3 V, vec3 E, vec3 albedo)
+{
+	return albedo * E / 3.14159265359;
+}
+

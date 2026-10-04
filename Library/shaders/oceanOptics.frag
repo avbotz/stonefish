@@ -21,6 +21,7 @@
 
 uniform vec3 cWater;
 uniform vec3 bWater;
+uniform sampler2DArray texCaustics;
 
 const float water2air = 1.33/1.0;
 const float air2water = 1.0/1.33;
@@ -30,6 +31,11 @@ const float r2 = 9.0;
 const float deltaMin = 0.025;
 const int nMax = 64;
 const float Sfactor = 10.0;
+
+//Caustics map (keep in sync with OpenGLOcean.h)
+const float causticsTileSize = 2.5;
+const float causticsDepth0 = 0.25;
+const float causticsLayers = 12.0;
 
 //Phase functions
 float Rayleigh(float cosTheta) //For small particles
@@ -81,6 +87,77 @@ vec3 RefractToAir(vec3 I, vec3 N)
 vec3 BeerLambert(float d)
 {
 	return exp(-cWater*d);
+}
+
+//Fresnel reflectance of unpolarized light at a planar interface between media with refractive indices n1 -> n2
+float FresnelDielectric(float cosi, float n1, float n2)
+{
+	cosi = clamp(cosi, 0.0, 1.0);
+	float eta = n1/n2;
+	float sint2 = eta * eta * (1.0 - cosi * cosi);
+	if(sint2 >= 1.0)
+		return 1.0; //Total internal reflection
+	float cost = sqrt(1.0 - sint2);
+	float rs = (n1 * cosi - n2 * cost)/(n1 * cosi + n2 * cost);
+	float rp = (n2 * cosi - n1 * cost)/(n2 * cosi + n1 * cost);
+	return 0.5 * (rs * rs + rp * rp);
+}
+
+/*
+    Illuminance of the direct sun light refracted into water, measured at normal incidence to the refracted beam.
+    \param Eh illuminance of the sun on a horizontal plane just above the surface
+    \param sunDir direction towards the sun (in air)
+    \param S direction of propagation of the refracted sun light
+*/
+vec3 SunIlluminanceInWater(vec3 Eh, vec3 sunDir, vec3 S)
+{
+	float cosAir = max(-sunDir.z, 0.0);
+	return Eh * (1.0 - FresnelDielectric(cosAir, 1.0, 1.33)) / max(S.z, 0.01);
+}
+
+/*
+    Relative intensity of the direct sun light under water, resulting from focusing by the surface ripples (caustics).
+    \param P position of the point
+    \param S direction of propagation of the refracted sun light
+    \param z depth of the point below the surface
+*/
+float Caustics(vec3 P, vec3 S, float z)
+{
+	if(z <= 0.0 || S.z <= 0.0)
+		return 1.0;
+
+	//Point where the refracted sun ray reaching P crossed the surface
+	vec2 uv = (P.xy - S.xy/S.z * z)/causticsTileSize;
+	
+	//Maps are computed for depths growing geometrically
+	float layer = clamp(2.0 * log2(max(z, causticsDepth0)/causticsDepth0), 0.0, causticsLayers - 1.0);
+	float l0 = floor(layer);
+	float l1 = min(l0 + 1.0, causticsLayers - 1.0);
+
+	//Blur due to the angular size of the sun (0.27 deg in air, reduced by refraction)
+	float mapSize = float(textureSize(texCaustics, 0).x);
+	float lod = log2(max(z * 0.0035/(causticsTileSize/mapSize), 1.0));
+	float maxLod = log2(mapSize);
+	
+	//Normalization by the mean intensity (energy lost where the focused light is smaller than a texel)
+	float c0 = textureLod(texCaustics, vec3(uv, l0), lod).r/max(textureLod(texCaustics, vec3(uv, l0), maxLod).r, 1e-3);
+	float c1 = textureLod(texCaustics, vec3(uv, l1), lod).r/max(textureLod(texCaustics, vec3(uv, l1), maxLod).r, 1e-3);
+	float c = mix(c0, c1, layer - l0);
+
+	//Light is not focused yet just under the surface, scattering reduces the contrast
+	c = mix(1.0, c, clamp(z/causticsDepth0, 0.0, 1.0));
+	return mix(1.0, c, exp(-bWater.g * z));
+}
+
+/*
+    Irradiance of the diffuse sky light transmitted through the surface, received by a surface with normal N.
+    \param Eh illuminance of the sky on a horizontal plane just above the surface
+    \param N normal of the surface
+*/
+vec3 SkyIlluminanceInWater(vec3 Eh, vec3 N)
+{
+	const float skyTransmittance = 0.934; //Hemispherical average for a flat water surface
+	return Eh * skyTransmittance * 0.5 * (1.0 - N.z);
 }
 
 /*

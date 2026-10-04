@@ -27,7 +27,9 @@
 
 #include <iostream>
 #include <fstream>
+#include <random>
 #include <unordered_set>
+#include <glm/gtc/type_ptr.hpp>
 #include "stb_image_write.h"
 #include "core/SimulationApp.h"
 #include "core/SimulationManager.h"
@@ -326,6 +328,76 @@ OpenGLOcean::OpenGLOcean(GLfloat size)
     dataFile.read((char*)scattering_, sizeof(scattering_));
     dataFile.close();
 #endif
+
+    //Capillary ripples (height field periodic over a tile)
+    rippleTexture_ = OpenGLContent::GenerateTexture(GL_TEXTURE_2D, glm::uvec3(RIPPLE_TEX_SIZE, RIPPLE_TEX_SIZE, 0), 
+                                                   GL_RGBA16F, GL_RGBA, GL_FLOAT, NULL, FilteringMode::TRILINEAR, true);
+    glGenFramebuffers(1, &rippleFBO_);
+    OpenGLState::BindFramebuffer(rippleFBO_);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, rippleTexture_, 0);
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        cError("Ripples FBO initialization failed!");
+    OpenGLState::BindFramebuffer(0);
+    
+    oceanShaders_["ripples"] = std::make_unique<GLSLShader>("oceanRipples.frag");
+    oceanShaders_["ripples"]->AddUniform("numWaves", ParameterType::INT);
+    oceanShaders_["ripples"]->AddUniform("tileSize", ParameterType::FLOAT);
+
+    //Caustics maps (intensity of refracted sun light at a series of depths)
+    causticsTexture_ = OpenGLContent::GenerateTexture(GL_TEXTURE_2D_ARRAY, glm::uvec3(CAUSTICS_TEX_SIZE, CAUSTICS_TEX_SIZE, CAUSTICS_LAYERS), 
+                                                     GL_R16F, GL_RED, GL_FLOAT, NULL, FilteringMode::TRILINEAR, true);
+    glGenFramebuffers(1, &causticsFBO_);
+    OpenGLState::BindFramebuffer(causticsFBO_);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, causticsTexture_, 0); //All layers (for clearing)
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        cError("Caustics FBO initialization failed!");
+    OpenGLState::BindFramebuffer(0);
+
+    oceanShaders_["caustics"] = std::make_unique<GLSLShader>("oceanCaustics.frag", "oceanCaustics.vert");
+    oceanShaders_["caustics"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["caustics"]->AddUniform("sunDir", ParameterType::VEC3);
+    oceanShaders_["caustics"]->AddUniform("tileSize", ParameterType::FLOAT);
+    oceanShaders_["caustics"]->AddUniform("depth", ParameterType::FLOAT);
+    oceanShaders_["caustics"]->AddUniform("margin", ParameterType::FLOAT);
+    oceanShaders_["caustics"]->AddUniform("mapSize", ParameterType::FLOAT);
+    
+    //Grid used to trace the refracted light
+    std::vector<glm::vec2> gridVertices;
+    std::vector<GLuint> gridIndices;
+    GLuint n = CAUSTICS_GRID_SIZE;
+    for(GLuint j=0; j<=n; ++j)
+        for(GLuint i=0; i<=n; ++i)
+            gridVertices.push_back(glm::vec2((GLfloat)i/(GLfloat)n, (GLfloat)j/(GLfloat)n));
+    for(GLuint j=0; j<n; ++j)
+        for(GLuint i=0; i<n; ++i)
+        {
+            GLuint v0 = j*(n+1) + i;
+            gridIndices.push_back(v0);
+            gridIndices.push_back(v0 + 1);
+            gridIndices.push_back(v0 + n + 1);
+            gridIndices.push_back(v0 + 1);
+            gridIndices.push_back(v0 + n + 2);
+            gridIndices.push_back(v0 + n + 1);
+        }
+    causticsIndexCount_ = (GLsizei)gridIndices.size();
+
+    glGenVertexArrays(1, &causticsVAO_);
+    glGenBuffers(2, causticsBuffers_);
+    OpenGLState::BindVertexArray(causticsVAO_);
+    glBindBuffer(GL_ARRAY_BUFFER, causticsBuffers_[0]);
+    glBufferData(GL_ARRAY_BUFFER, gridVertices.size() * sizeof(glm::vec2), gridVertices.data(), GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, causticsBuffers_[1]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, gridIndices.size() * sizeof(GLuint), gridIndices.data(), GL_STATIC_DRAW);
+    OpenGLState::BindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    rippleTime_ = 0.f;
+    causticsUniform_ = false;
+    setRipples(0.05f); //Light breeze
+    GenerateCaustics(glm::vec3(0.f,0.f,-1.f), 0.f);
 }
 
 OpenGLOcean::~OpenGLOcean()
@@ -333,6 +405,124 @@ OpenGLOcean::~OpenGLOcean()
     glDeleteFramebuffers(3, oceanFBOs_);
     glDeleteTextures(6, oceanTextures_);
     glDeleteBuffers(1, &oceanCurrentsUBO_);
+    glDeleteFramebuffers(1, &rippleFBO_);
+    glDeleteFramebuffers(1, &causticsFBO_);
+    glDeleteTextures(1, &rippleTexture_);
+    glDeleteTextures(1, &causticsTexture_);
+    glDeleteVertexArrays(1, &causticsVAO_);
+    glDeleteBuffers(2, causticsBuffers_);
+}
+
+void OpenGLOcean::setRipples(GLfloat rmsSlope)
+{
+    rippleSlope_ = rmsSlope < 0.f ? 0.f : rmsSlope;
+    rippleWaves_.clear();
+    rippleOmega_.clear();
+    if(rippleSlope_ == 0.f)
+        return;
+
+    //Wind-driven capillary-gravity waves, with wavelengths from 3 to 60 cm, directions spread around the wind (along X).
+    //Each component contributes equally to the slope variance (saturation range of the wave spectrum).
+    //Wave vectors are multiples of the fundamental wavenumber of the tile, so that the height field is periodic.
+    std::mt19937 rng(20260928);
+    std::uniform_real_distribution<GLfloat> uniform(0.f, 1.f);
+    std::normal_distribution<GLfloat> spread(0.f, 0.7f);
+    const GLfloat lambdaMin = 0.03f;
+    const GLfloat lambdaMax = 0.6f;
+    const GLfloat dk = 2.f * M_PI/RIPPLE_TILE_SIZE;
+    const GLfloat g = 9.81f; //Gravity [m/s^2]
+    const GLfloat sigma = 0.072f/1000.f; //Surface tension to density ratio of water [m^3/s^2]
+    GLfloat slopeAmplitude = rippleSlope_ * sqrtf(2.f/(GLfloat)MAX_RIPPLE_WAVES);
+
+    for(unsigned int i=0; i<MAX_RIPPLE_WAVES; ++i)
+    {
+        GLfloat lambda = lambdaMin * powf(lambdaMax/lambdaMin, ((GLfloat)i + uniform(rng))/(GLfloat)MAX_RIPPLE_WAVES);
+        GLfloat k = 2.f * M_PI/lambda;
+        GLfloat dir = spread(rng);
+        glm::vec2 kv = glm::round(glm::vec2(cosf(dir), sinf(dir)) * k/dk) * dk;
+        if(glm::length(kv) < dk) 
+            kv = glm::vec2(dk, 0.f);
+        k = glm::length(kv);
+        rippleWaves_.push_back(glm::vec4(kv, slopeAmplitude/k, 2.f * M_PI * uniform(rng)));
+        rippleOmega_.push_back(sqrtf(g * k + sigma * k * k * k)); //Dispersion relation of capillary-gravity waves
+    }
+}
+
+GLfloat OpenGLOcean::getRipples()
+{
+    return rippleSlope_;
+}
+
+void OpenGLOcean::GenerateCaustics(glm::vec3 sunDirection, GLfloat dt)
+{
+    rippleTime_ += dt;
+    OpenGLState::DisableDepthTest();
+    OpenGLState::DisableCullFace();
+    OpenGLState::UnbindTexture(TEX_OCEAN_CAUSTICS);
+    OpenGLState::UnbindTexture(TEX_OCEAN_RIPPLES);
+
+    //1. Height field of ripples
+    std::vector<glm::vec4> waves(rippleWaves_.size());
+    for(size_t i=0; i<rippleWaves_.size(); ++i)
+        waves[i] = glm::vec4(glm::vec3(rippleWaves_[i]), rippleWaves_[i].w - rippleOmega_[i] * rippleTime_);
+
+    OpenGLState::BindFramebuffer(rippleFBO_);
+    OpenGLState::Viewport(0, 0, RIPPLE_TEX_SIZE, RIPPLE_TEX_SIZE);
+    oceanShaders_["ripples"]->Use();
+    oceanShaders_["ripples"]->SetUniform("numWaves", (GLint)waves.size());
+    oceanShaders_["ripples"]->SetUniform("tileSize", RIPPLE_TILE_SIZE);
+    if(!waves.empty())
+        glUniform4fv(glGetUniformLocation(oceanShaders_["ripples"]->getProgramHandle(), "waves"), (GLsizei)waves.size(), glm::value_ptr(waves[0]));
+    ((GraphicalSimulationApp*)SimulationApp::getApp())->getGLPipeline()->getContent()->DrawSAQ();
+    OpenGLState::BindTexture(TEX_OCEAN_RIPPLES, GL_TEXTURE_2D, rippleTexture_);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    //2. Caustics maps
+    OpenGLState::BindFramebuffer(causticsFBO_);
+    OpenGLState::Viewport(0, 0, CAUSTICS_TEX_SIZE, CAUSTICS_TEX_SIZE);
+    bool uniform = waves.empty() || sunDirection.z > -0.01f; //Flat surface or sun below horizon
+    if(uniform)
+    {
+        if(!causticsUniform_) //Uniform light intensity
+        {
+            GLfloat one[4] = {1.f, 1.f, 1.f, 1.f};
+            glClearBufferfv(GL_COLOR, 0, one);
+            causticsUniform_ = true;
+        }
+    }
+    else
+    {
+        GLfloat zero[4] = {0.f, 0.f, 0.f, 0.f};
+        glClearBufferfv(GL_COLOR, 0, zero);
+        OpenGLState::EnableBlend();
+        glBlendFunc(GL_ONE, GL_ONE);
+        oceanShaders_["caustics"]->Use();
+        oceanShaders_["caustics"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+        oceanShaders_["caustics"]->SetUniform("sunDir", sunDirection);
+        oceanShaders_["caustics"]->SetUniform("tileSize", RIPPLE_TILE_SIZE);
+        oceanShaders_["caustics"]->SetUniform("mapSize", (GLfloat)CAUSTICS_TEX_SIZE);
+        OpenGLState::BindVertexArray(causticsVAO_);
+        for(GLint i=0; i<CAUSTICS_LAYERS; ++i)
+        {
+            //Grid extended by the maximum expected displacement of the refracted light (light from the neighbouring tiles)
+            GLfloat depth = CAUSTICS_DEPTH0 * powf(2.f, 0.5f * (GLfloat)i);
+            GLfloat margin = glm::min(0.02f + rippleSlope_ * depth/RIPPLE_TILE_SIZE, 0.3f);
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, causticsTexture_, 0, i);
+            oceanShaders_["caustics"]->SetUniform("depth", depth);
+            oceanShaders_["caustics"]->SetUniform("margin", margin);
+            glDrawElements(GL_TRIANGLES, causticsIndexCount_, GL_UNSIGNED_INT, (void*)0);
+        }
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, causticsTexture_, 0);
+        OpenGLState::BindVertexArray(0);
+        OpenGLState::DisableBlend();
+        causticsUniform_ = false;
+    }
+    OpenGLState::BindFramebuffer(0);
+    OpenGLState::UseProgram(0);
+    OpenGLState::BindTexture(TEX_OCEAN_CAUSTICS, GL_TEXTURE_2D_ARRAY, causticsTexture_);
+    glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+    OpenGLState::EnableDepthTest();
+    OpenGLState::EnableCullFace();
 }
 
 void OpenGLOcean::setWaterType(GLfloat t)

@@ -87,5 +87,5 @@ void main()
     fragColor = temperature + length(absorption.rgb * skyIlluminance / whitePoint) * 0.0001;
 	
 	//Sun
-	fragColor += length(SunContribution(P, N, toEye, absorption.rgb, sunIlluminance) / whitePoint) * 0.0001;
+	fragColor += length(SunContribution(P, N, toEye, absorption.rgb, sunIlluminance/max(dot(N, sunDirection), 1e-6)) / whitePoint) * 0.0001;
 }

@@ -87,3 +87,20 @@ vec3 ShadingModel(vec3 N, vec3 V, vec3 L, vec3 Lcolor, vec3 albedo)
     
     return Lcolor * (kD * albedo / PI + specular) * NdotL;
 }
+
+//Environment lighting represented by the irradiance E, received from a uniformly bright hemisphere.
+//Diffuse part is Lambertian, specular part uses the analytic approximation of the pre-integrated
+//GGX BRDF (split-sum approximation, B. Karis, "Physically Based Shading on Mobile", 2014).
+vec3 AmbientShadingModel(vec3 N, vec3 V, vec3 E, vec3 albedo)
+{
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
+    float NdotV = max(dot(N, V), 0.0);
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 r = roughness * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
+    vec2 AB = vec2(-1.04, 1.04) * a004 + r.zw;
+    vec3 specular = F0 * AB.x + AB.y;
+    vec3 kD = (vec3(1.0) - specular) * (1.0 - metallic);
+    return E / PI * (kD * albedo + specular);
+}

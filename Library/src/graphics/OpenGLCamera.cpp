@@ -49,6 +49,8 @@ OpenGLCamera::OpenGLCamera(GLint x, GLint y, GLint width, GLint height, glm::vec
 	toneMapping_ = true;
     antiAliasing_ = false;
     aoFactor_ = 0;
+    reflectionFBO_ = 0;
+    reflectionTex_[0] = reflectionTex_[1] = 0;
     
     if(static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline()->getRenderSettings().ao != RenderQuality::DISABLED)
         aoFactor_ = 1;
@@ -220,6 +222,11 @@ OpenGLCamera::~OpenGLCamera()
     glDeleteFramebuffers(1, &postprocessFBO_);
     glDeleteFramebuffers(1, &quaterPostprocessFBO_);
     glDeleteFramebuffers(1, &linearDepthFBO_);
+    if(reflectionFBO_ != 0)
+    {
+        glDeleteFramebuffers(1, &reflectionFBO_);
+        glDeleteTextures(2, reflectionTex_);
+    }
     
     glDeleteBuffers(1, &histogramSSBO_);
 
@@ -567,7 +574,7 @@ void OpenGLCamera::DrawAO(GLfloat intensity)
     }
 }
 
-void OpenGLCamera::DrawSSR()
+void OpenGLCamera::DrawSSR(bool waterUnderside)
 {
     if(shaders["ssr"] == nullptr)
         return;
@@ -611,6 +618,7 @@ void OpenGLCamera::DrawSSR()
     shaders["ssr"]->SetUniform("invViewportSize", glm::vec2(1.f/(GLfloat)viewportWidth_, 1.f/(GLfloat)viewportHeight_));
     shaders["ssr"]->SetUniform("near", near_);
     shaders["ssr"]->SetUniform("far", far_);
+    shaders["ssr"]->SetUniform("waterUnderside", waterUnderside ? 1 : 0);
     static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline()->getContent()->DrawSAQ();
     OpenGLState::UseProgram(0);
     OpenGLState::UnbindTexture(TEX_POSTPROCESS4);
@@ -630,6 +638,73 @@ void OpenGLCamera::DrawSSR()
     OpenGLState::UnbindTexture(TEX_POSTPROCESS1);
     OpenGLState::DisableBlend();
     OpenGLState::EnableDepthTest();
+}
+
+void OpenGLCamera::RenderWaterReflection(OpenGLPipeline* pipe)
+{
+    GLint w = viewportWidth_/2;
+    GLint h = viewportHeight_/2;
+
+    if(reflectionFBO_ == 0) //Half resolution is sufficient for the image distorted by the ripples
+    {
+        reflectionTex_[0] = OpenGLContent::GenerateTexture(GL_TEXTURE_2D, glm::uvec3(w, h, 0), 
+                                                          GL_RGBA16F, GL_RGBA, GL_FLOAT, NULL, FilteringMode::BILINEAR, false);
+        reflectionTex_[1] = OpenGLContent::GenerateTexture(GL_TEXTURE_2D, glm::uvec3(w, h, 0), 
+                                                          GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT, NULL, FilteringMode::NEAREST, false);
+        std::vector<FBOTexture> fboTextures;
+        fboTextures.push_back(FBOTexture(GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, reflectionTex_[0]));
+        fboTextures.push_back(FBOTexture(GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, reflectionTex_[1]));
+        reflectionFBO_ = OpenGLContent::GenerateFramebuffer(fboTextures);
+    }
+
+    //View mirrored with respect to the water surface (plane z=0), eye above the surface
+    OpenGLContent* content = pipe->getContent();
+    glm::mat4 mirror = glm::scale(glm::mat4(1.f), glm::vec3(1.f, 1.f, -1.f));
+    glm::vec3 eye = GetEyePosition();
+    glm::vec3 dir = GetLookingDirection();
+    content->SetCurrentView(GetViewMatrix() * mirror, GetProjectionMatrix(), glm::vec3(eye.x, eye.y, -eye.z), 
+                            glm::vec3(dir.x, dir.y, -dir.z), GetLogDepthConstant());
+    content->SetClipPlane(glm::vec4(0.f, 0.f, 1.f, 0.f)); //Only the scene under the surface is reflected
+
+    GLfloat clearColor[4];
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, clearColor);
+    OpenGLState::BindFramebuffer(reflectionFBO_);
+    OpenGLState::Viewport(0, 0, w, h);
+    glClearColor(0.f, 0.f, 0.f, 0.f); //Alpha marks pixels covered by geometry
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_CLIP_DISTANCE0);
+    glFrontFace(GL_CW); //Mirroring reverses the winding of triangles
+    content->SetDrawingMode(DrawingMode::UNDERWATER);
+    pipe->DrawObjects();
+    glFrontFace(GL_CCW);
+    glDisable(GL_CLIP_DISTANCE0);
+    glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+    content->SetClipPlane(glm::vec4(0.f));
+
+    //Restore the view
+    content->SetCurrentView(this);
+    OpenGLState::BindFramebuffer(renderFBO_);
+    SetViewport();
+}
+
+GLuint OpenGLCamera::getWaterReflectionTexture()
+{
+    return reflectionTex_[0];
+}
+
+bool OpenGLCamera::CanSeeWaterSurface()
+{
+    //The surface is visible if any of the rays through the corners of the image points upwards (negative z)
+    glm::mat4 invVP = glm::inverse(GetProjectionMatrix() * GetViewMatrix());
+    glm::vec3 eye = GetEyePosition();
+    for(GLfloat x : {-1.f, 1.f})
+        for(GLfloat y : {-1.f, 1.f})
+        {
+            glm::vec4 p = invVP * glm::vec4(x, y, 1.f, 1.f);
+            if(p.z/p.w - eye.z < 0.f)
+                return true;
+        }
+    return false;
 }
 
 void OpenGLCamera::GenerateBloom()
@@ -862,6 +937,7 @@ void OpenGLCamera::Init(const RenderSettings& rSettings)
         shaders["ssr"]->AddUniform("screenEdgeFadeStart", ParameterType::FLOAT);
         shaders["ssr"]->AddUniform("eyeFadeStart", ParameterType::FLOAT);
         shaders["ssr"]->AddUniform("eyeFadeEnd", ParameterType::FLOAT);
+        shaders["ssr"]->AddUniform("waterUnderside", ParameterType::INT);
 
         shaders["ssr"]->Use();
         switch(rSettings.ssr)

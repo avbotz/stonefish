@@ -42,6 +42,7 @@ uniform float maxRayDistance;           // maximum distance of a ray
 uniform float screenEdgeFadeStart;      // distance to screen edge that ray hits will start to fade (0.0 -> 1.0)
 uniform float eyeFadeStart;             // ray direction's Z that ray hits will start to fade (0.0 -> 1.0)
 uniform float eyeFadeEnd;               // ray direction's Z that ray hits will be cut (0.0 -> 1.0)
+uniform int waterUnderside;             // view from under water: pixels with maximum reflection strength belong to the water surface
 
 vec3 positionFromDepth(vec2 uv, float depth)
 {
@@ -245,6 +246,19 @@ float fresnelSchlick(float cosTheta, float R0)
 	return R0 + (1.0 - R0) * pow(1.0 - cosTheta, 5.0);
 }
 
+//Fresnel reflectance of unpolarized light at the water-air interface, seen from the water side
+float fresnelWaterToAir(float cosi)
+{
+	cosi = clamp(cosi, 0.0, 1.0);
+	float sint2 = 1.33 * 1.33 * (1.0 - cosi * cosi);
+	if(sint2 >= 1.0)
+		return 1.0; //Total internal reflection
+	float cost = sqrt(1.0 - sint2);
+	float rs = (1.33 * cosi - cost)/(1.33 * cosi + cost);
+	float rp = (cosi - 1.33 * cost)/(cosi + 1.33 * cost);
+	return 0.5 * (rs * rs + rp * rp);
+}
+
 void main(void)
 {
     //Get view space normal
@@ -274,7 +288,10 @@ void main(void)
         int iterationCount;
         bool intersect = traceScreenSpaceRay(vsRayOrigin, vsRayDirection, jitter, hitPixel, hitPoint, iterationCount, texcoord.x > 0.5);
         float alpha = calculateAlphaForIntersection(intersect, iterationCount, reflectionStrength, hitPixel, hitPoint, vsRayOrigin, vsRayDirection);
-        alpha *= fresnelSchlick(max(vsNormal.z, 0.0), 0.02);
+        if(waterUnderside > 0 && reflectionStrength > 0.995)
+            alpha *= fresnelWaterToAir(dot(-normalize(vsRayOrigin), vsNormal));
+        else
+            alpha *= fresnelSchlick(max(vsNormal.z, 0.0), 0.02);
 
         //Add sky fallback or underwater background fallback
         hitPixel = mix(texcoord, hitPixel, float(intersect));

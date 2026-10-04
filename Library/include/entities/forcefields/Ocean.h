@@ -122,6 +122,12 @@ namespace sf
          */
         void setWaterType(Scalar jerlov);
 
+        //! A method to set the amplitude of capillary ripples covering the water surface (visual effect, including caustics).
+        /*!
+         \param rmsSlope the root mean square slope of the surface [rad] (0 means perfectly flat surface)
+         */
+        void setRipples(Scalar rmsSlope);
+
         //! A method to enable rendering of suspended particles (underwater snow).
         void setParticles(bool enabled);
 

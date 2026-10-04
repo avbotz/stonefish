@@ -64,6 +64,7 @@ OpenGLContent::OpenGLContent()
     ellipsoid_.vao = 0;
     eyePos_ = glm::vec3();
     viewDir_ = glm::vec3(1.f,0,0);
+    clipPlane_ = glm::vec4(0.f);
     viewProjection_ = glm::mat4();
     view_ = glm::mat4();
     projection_ = glm::mat4();
@@ -382,6 +383,7 @@ OpenGLContent::OpenGLContent()
         for(auto& [key, shader] : ms.shaders)
         {
             shader->AddUniform("MVP", ParameterType::MAT4);
+            shader->AddUniform("clipPlane", ParameterType::VEC4);
             shader->AddUniform("M", ParameterType::MAT4);
             shader->AddUniform("N", ParameterType::MAT3);
             shader->AddUniform("MV", ParameterType::MAT3);
@@ -398,8 +400,11 @@ OpenGLContent::OpenGLContent()
             shader->AddUniform("irradiance_texture", ParameterType::INT);
             shader->BindUniformBlock("SunSky", UBO_SUNSKY);
             shader->BindUniformBlock("Lights", UBO_LIGHTS);
+            bool underwater = shader->AddUniform("texCaustics", ParameterType::INT); //Only underwater shaders
 
             shader->Use();
+            if(underwater)
+                shader->SetUniform("texCaustics", TEX_OCEAN_CAUSTICS);
             shader->SetUniform("spotLightsShadowMap", TEX_SPOT_SHADOW);
             shader->SetUniform("spotLightsDepthMap", TEX_SPOT_DEPTH);
             shader->SetUniform("sunDepthMap", TEX_SUN_DEPTH);
@@ -609,6 +614,31 @@ void OpenGLContent::SetCurrentView(OpenGLView* v)
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(ViewUBO), v->getViewUBOData());
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     glMemoryBarrier(GL_UNIFORM_BARRIER_BIT);
+}
+
+void OpenGLContent::SetCurrentView(const glm::mat4& V, const glm::mat4& P, const glm::vec3& eye, const glm::vec3& dir, GLfloat logDepthConstant)
+{
+    eyePos_ = eye;
+    viewDir_ = dir;
+    view_ = V;
+    projection_ = P;
+    viewProjection_ = projection_ * view_;
+    FC_ = logDepthConstant;
+
+    ViewUBO data;
+    data.VP = viewProjection_;
+    data.eye = eye;
+    data.pad = 0.f;
+    OpenGLView::ExtractFrustumFromVP(data.frustum, data.VP);
+    glBindBuffer(GL_UNIFORM_BUFFER, viewUBO_);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(ViewUBO), &data);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glMemoryBarrier(GL_UNIFORM_BARRIER_BIT);
+}
+
+void OpenGLContent::SetClipPlane(const glm::vec4& plane)
+{
+    clipPlane_ = plane;
 }
 
 void OpenGLContent::SetDrawingMode(DrawingMode m)
@@ -1029,6 +1059,7 @@ void OpenGLContent::UseLook(const Look& look, bool texturable, const glm::mat4& 
     shader->SetUniform("FC", FC_);
     shader->SetUniform("eyePos", eyePos_);
     shader->SetUniform("viewDir", viewDir_);
+    shader->SetUniform("clipPlane", clipPlane_);
 
     if(updateMaterial)
     {
@@ -1039,7 +1070,7 @@ void OpenGLContent::UseLook(const Look& look, bool texturable, const glm::mat4& 
             {
                 shader->SetUniform("specularStrength", look.params[0]);
                 shader->SetUniform("shininess", look.params[1]);
-                shader->SetUniform("reflectivity", look.reflectivity);
+                shader->SetUniform("reflectivity", glm::min(look.reflectivity, 0.99f)); //Maximum reserved for the water surface
                 shader->SetUniform("color", glm::vec4(look.color.rgb, 1.f));
             }
             break;
@@ -1048,7 +1079,7 @@ void OpenGLContent::UseLook(const Look& look, bool texturable, const glm::mat4& 
             {
                 shader->SetUniform("roughness", look.params[0]);
                 shader->SetUniform("metallic", look.params[1]);
-                shader->SetUniform("reflectivity", look.reflectivity);
+                shader->SetUniform("reflectivity", glm::min(look.reflectivity, 0.99f)); //Maximum reserved for the water surface
                 shader->SetUniform("color", glm::vec4(look.color.rgb, 1.f));
             }
             break;
@@ -1168,7 +1199,7 @@ void OpenGLContent::UseCableLook(const Look& look, GLfloat radius)
             {
                 shader->SetUniform("specularStrength", look.params[0]);
                 shader->SetUniform("shininess", look.params[1]);
-                shader->SetUniform("reflectivity", look.reflectivity);
+                shader->SetUniform("reflectivity", glm::min(look.reflectivity, 0.99f)); //Maximum reserved for the water surface
                 shader->SetUniform("color", glm::vec4(look.color.rgb, 1.f));
             }
             break;
@@ -1177,7 +1208,7 @@ void OpenGLContent::UseCableLook(const Look& look, GLfloat radius)
             {
                 shader->SetUniform("roughness", look.params[0]);
                 shader->SetUniform("metallic", look.params[1]);
-                shader->SetUniform("reflectivity", look.reflectivity);
+                shader->SetUniform("reflectivity", glm::min(look.reflectivity, 0.99f)); //Maximum reserved for the water surface
                 shader->SetUniform("color", glm::vec4(look.color.rgb, 1.f));
             }
             break;

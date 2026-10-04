@@ -62,6 +62,8 @@ OpenGLAtmosphere::OpenGLAtmosphere(const std::string& modelFilename, RenderQuali
     sunSkyUBO_ = 0;
     sunDirection_ = glm::vec3(0,0,1.f);
     sunModelView_ = glm::mat4x4(0);
+    sunRefractedModelView_ = glm::mat4x4(0);
+    shadowModelView_ = glm::mat4x4(0);
     
     //Set shadow quality
     switch(shadow)
@@ -232,11 +234,24 @@ void OpenGLAtmosphere::SetSunPosition(float azimuthDeg, float elevationDeg)
     sunDirection_ = glm::normalize(glm::rotate(glm::vec3(cos(sunAzimuthAngle) * sin(sunZenithAngle), sin(sunAzimuthAngle) * sin(sunZenithAngle), cos(sunZenithAngle)), (float)M_PI, glm::vec3(0,1.f,0)));
     
     //Build sun modelview matrix
+    sunModelView_ = BuildLightModelView(sunDirection_);
+
+    //Build modelview matrix for the sun light refracted into water (used for shadows under the surface)
+    glm::vec3 refracted = glm::refract(-sunDirection_, glm::vec3(0.f,0.f,-1.f), 1.f/1.33f);
+    if(glm::length(refracted) > 0.f && sunDirection_.z < 0.f)
+        sunRefractedModelView_ = BuildLightModelView(-glm::normalize(refracted));
+    else
+        sunRefractedModelView_ = sunModelView_;
+}
+
+glm::mat4 OpenGLAtmosphere::BuildLightModelView(glm::vec3 dirToLight)
+{
     glm::vec3 up(0,0,-1.f);
-    glm::vec3 right = glm::cross(sunDirection_, up);
-    right = glm::normalize(right);
-    up = glm::normalize(glm::cross(right, sunDirection_));
-    sunModelView_ = glm::lookAt(glm::vec3(0,0,0), -sunDirection_, up) * glm::mat4(1.f);
+    if(fabsf(glm::dot(up, dirToLight)) > 0.9999f) //Light exactly above
+        up = glm::vec3(1.f,0,0);
+    glm::vec3 right = glm::normalize(glm::cross(dirToLight, up));
+    up = glm::normalize(glm::cross(right, dirToLight));
+    return glm::lookAt(glm::vec3(0,0,0), -dirToLight, up);
 }
 
 void OpenGLAtmosphere::GetSunPosition(GLfloat& azimuthDeg, GLfloat& elevationDeg)
@@ -381,10 +396,13 @@ void OpenGLAtmosphere::DrawSkyAndSunTemperature(const OpenGLView* view)
     OpenGLState::UseProgram(0);
 }
 
-void OpenGLAtmosphere::BakeShadowmaps(OpenGLPipeline* pipe, OpenGLView* view)
+void OpenGLAtmosphere::BakeShadowmaps(OpenGLPipeline* pipe, OpenGLView* view, bool refracted)
 {
     if(sunShadowmapSize_ == 0)
         return;
+
+    //Shadows under the water surface are cast by the refracted sun light
+    shadowModelView_ = refracted ? sunRefractedModelView_ : sunModelView_;
     
     //Pre-set splits
     for(unsigned int i = 0; i < sunShadowmapSplits_; ++i)
@@ -417,10 +435,10 @@ void OpenGLAtmosphere::BakeShadowmaps(OpenGLPipeline* pipe, OpenGLView* view)
         //Adjust the view frustum of the light, so that it encloses the camera frustum slice fully.
         //note that this function sets the projection matrix as it sees best fit
         glm::mat4 cp = BuildCropProjMatrix(sunShadowFrustum_[i]);
-        sunShadowCPM_[i] =  cp * sunModelView_;
+        sunShadowCPM_[i] =  cp * shadowModelView_;
 
         static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline()->getContent()->SetProjectionMatrix(cp);
-        static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline()->getContent()->SetViewMatrix(sunModelView_);
+        static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline()->getContent()->SetViewMatrix(shadowModelView_);
         //Draw current depth map
         glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, sunShadowmapArray_, 0, i);
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -514,7 +532,7 @@ glm::mat4 OpenGLAtmosphere::BuildCropProjMatrix(ViewFrustum &f)
     glm::vec4 transf;
 
     //Find the z-range of the current frustum as seen from the light in order to increase precision
-    glm::mat4 shad_mv = sunModelView_;
+    glm::mat4 shad_mv = shadowModelView_;
 
     //Note: only the z-component is needed and thus the multiplication can be simplified
     //transf.z = shad_modelview[2] * f.point[0].x + shad_modelview[6] * f.point[0].y + shad_modelview[10] * f.point[0].z + shad_modelview[14]

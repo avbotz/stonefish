@@ -29,6 +29,7 @@ uniform vec3 viewDir;
 #inject "lightingDef.glsl"
 
 vec3 ShadingModel(vec3 N, vec3 V, vec3 L, vec3 Lcolor, vec3 albedo);
+vec3 SunContributionDir(vec3 P, vec3 N, vec3 toEye, vec3 albedo, vec3 illuminance, vec3 L);
 
 //Calculate contribution of different light types
 vec4 PointLightContribution(int id, vec3 P, vec3 N, vec3 toEye, vec3 albedo)
@@ -60,13 +61,20 @@ vec4 SpotLightContribution(int id, vec3 P, vec3 N, vec3 toEye, vec3 albedo)
 		return vec4(0.0);
 }
 
+//Illuminance of the sun is expected at normal incidence (the shading model applies the cosine law)
 vec3 SunContribution(vec3 P, vec3 N, vec3 toEye, vec3 albedo, vec3 illuminance)
 {
-	float NdotL = dot(N, sunDirection);
+	return SunContributionDir(P, N, toEye, albedo, illuminance, sunDirection);
+}
+
+//Sun light arriving from direction L (e.g. refracted by the water surface)
+vec3 SunContributionDir(vec3 P, vec3 N, vec3 toEye, vec3 albedo, vec3 illuminance, vec3 L)
+{
+	float NdotL = dot(N, L);
 	
 	if(NdotL > 0.0)
 	{	
-		return ShadingModel(N, toEye, sunDirection, illuminance, albedo);
+		return ShadingModel(N, toEye, L, illuminance, albedo);
 	}
 	else
 		return vec3(0.0);

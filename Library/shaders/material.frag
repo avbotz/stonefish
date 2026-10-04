@@ -43,6 +43,7 @@ vec3 GetSunAndSkyIlluminance(vec3 p, vec3 normal, vec3 sun_direction, out vec3 s
 vec4 PointLightContribution(int id, vec3 P, vec3 N, vec3 toEye, vec3 albedo);
 vec4 SpotLightContribution(int id, vec3 P, vec3 N, vec3 toEye, vec3 albedo);
 vec3 SunContribution(vec3 P, vec3 N, vec3 toEye, vec3 albedo, vec3 illuminance);
+vec3 AmbientShadingModel(vec3 N, vec3 V, vec3 E, vec3 albedo);
 
 void main()
 {	
@@ -61,10 +62,10 @@ void main()
 	vec3 posSky = vec3(P.xy/atmLengthUnitInMeters, clamp(P.z/atmLengthUnitInMeters, -100000.0/atmLengthUnitInMeters, -0.5/atmLengthUnitInMeters));
 	vec3 skyIlluminance;
     vec3 sunIlluminance = GetSunAndSkyIlluminance(posSky - center, N, sunDirection, skyIlluminance);
-    fragColor = albedo.rgb * skyIlluminance;
+    fragColor = AmbientShadingModel(N, toEye, skyIlluminance, albedo.rgb);
 	
-	//Sun
-	fragColor += SunContribution(P, N, toEye, albedo.rgb, sunIlluminance);
+	//Sun (illuminance converted to normal incidence, the cosine law is applied by the shading model)
+	fragColor += SunContribution(P, N, toEye, albedo.rgb, sunIlluminance/max(dot(N, sunDirection), 1e-6));
 	
 	fragColor = fragColor/whitePoint; //Color correction and normalization
 	

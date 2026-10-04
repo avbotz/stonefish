@@ -31,6 +31,7 @@
 #include "graphics/OpenGLContent.h"
 #include "graphics/OpenGLView.h"
 #include "graphics/OpenGLAtmosphere.h"
+#include "graphics/OpenGLCamera.h"
 
 namespace sf
 {
@@ -53,6 +54,8 @@ OpenGLFlatOcean::OpenGLFlatOcean(GLfloat size) : OpenGLOcean(200000.f)
     sources.push_back(GLSLSource(GL_VERTEX_SHADER, "oceanSurface.vert"));
     sources.push_back(GLSLSource(GL_FRAGMENT_SHADER, "oceanSurface.frag"));
     oceanShaders_["surface"] = std::make_unique<GLSLShader>(sources, precompiled);
+    oceanShaders_["surface"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["surface"]->AddUniform("flatOcean", ParameterType::FLOAT);
     oceanShaders_["surface"]->AddUniform("size", ParameterType::FLOAT);
     oceanShaders_["surface"]->AddUniform("texWaveFFT", ParameterType::INT);
     oceanShaders_["surface"]->AddUniform("texSlopeVariance", ParameterType::INT);
@@ -71,6 +74,8 @@ OpenGLFlatOcean::OpenGLFlatOcean(GLfloat size) : OpenGLOcean(200000.f)
     oceanShaders_["surface"]->BindUniformBlock("SunSky", UBO_SUNSKY);
 
     oceanShaders_["surface"]->Use();
+    oceanShaders_["surface"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+    oceanShaders_["surface"]->SetUniform("flatOcean", 1.f);
     oceanShaders_["surface"]->SetUniform("transmittance_texture", TEX_ATM_TRANSMITTANCE);
     oceanShaders_["surface"]->SetUniform("scattering_texture", TEX_ATM_SCATTERING);
     oceanShaders_["surface"]->SetUniform("irradiance_texture", TEX_ATM_IRRADIANCE);
@@ -82,6 +87,8 @@ OpenGLFlatOcean::OpenGLFlatOcean(GLfloat size) : OpenGLOcean(200000.f)
     sources.pop_back();
     sources.push_back(GLSLSource(GL_FRAGMENT_SHADER, "oceanSurfaceTemp.frag"));
     oceanShaders_["surfaceTemp"] = std::make_unique<GLSLShader>(sources, precompiled);
+    oceanShaders_["surfaceTemp"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["surfaceTemp"]->AddUniform("flatOcean", ParameterType::FLOAT);
     oceanShaders_["surfaceTemp"]->AddUniform("size", ParameterType::FLOAT);
     oceanShaders_["surfaceTemp"]->AddUniform("texWaveFFT", ParameterType::INT);
     oceanShaders_["surfaceTemp"]->AddUniform("texSlopeVariance", ParameterType::INT);
@@ -101,6 +108,8 @@ OpenGLFlatOcean::OpenGLFlatOcean(GLfloat size) : OpenGLOcean(200000.f)
     oceanShaders_["surfaceTemp"]->BindUniformBlock("SunSky", UBO_SUNSKY);
 
     oceanShaders_["surfaceTemp"]->Use();
+    oceanShaders_["surfaceTemp"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+    oceanShaders_["surfaceTemp"]->SetUniform("flatOcean", 1.f);
     oceanShaders_["surfaceTemp"]->SetUniform("transmittance_texture", TEX_ATM_TRANSMITTANCE);
     oceanShaders_["surfaceTemp"]->SetUniform("scattering_texture", TEX_ATM_SCATTERING);
     oceanShaders_["surfaceTemp"]->SetUniform("irradiance_texture", TEX_ATM_IRRADIANCE);
@@ -116,6 +125,10 @@ OpenGLFlatOcean::OpenGLFlatOcean(GLfloat size) : OpenGLOcean(200000.f)
     sources.pop_back();
     sources.push_back(GLSLSource(GL_FRAGMENT_SHADER, "oceanBacksurface.frag"));
     oceanShaders_["backsurface"] = std::make_unique<GLSLShader>(sources, precompiled);
+    oceanShaders_["backsurface"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["backsurface"]->AddUniform("texReflection", ParameterType::INT);
+    oceanShaders_["backsurface"]->AddUniform("reflectionEnabled", ParameterType::FLOAT);
+    oceanShaders_["backsurface"]->AddUniform("flatOcean", ParameterType::FLOAT);
     oceanShaders_["backsurface"]->AddUniform("size", ParameterType::FLOAT);
     oceanShaders_["backsurface"]->AddUniform("texWaveFFT", ParameterType::INT);
     oceanShaders_["backsurface"]->AddUniform("texSlopeVariance", ParameterType::INT);
@@ -135,6 +148,8 @@ OpenGLFlatOcean::OpenGLFlatOcean(GLfloat size) : OpenGLOcean(200000.f)
     glDeleteShader(oceanOpticsFragment);
 
     oceanShaders_["backsurface"]->Use();
+    oceanShaders_["backsurface"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+    oceanShaders_["backsurface"]->SetUniform("flatOcean", 1.f);
     oceanShaders_["backsurface"]->SetUniform("transmittance_texture", TEX_ATM_TRANSMITTANCE);
     oceanShaders_["backsurface"]->SetUniform("scattering_texture", TEX_ATM_SCATTERING);
     oceanShaders_["backsurface"]->SetUniform("irradiance_texture", TEX_ATM_IRRADIANCE);
@@ -248,6 +263,13 @@ void OpenGLFlatOcean::DrawBacksurface(OpenGLView* view)
     OpenGLState::BindTexture(TEX_POSTPROCESS1, GL_TEXTURE_2D_ARRAY, oceanTextures_[3]);
     OpenGLState::BindTexture(TEX_POSTPROCESS2, GL_TEXTURE_3D, oceanTextures_[2]);
 
+    //Mirror image of the scene rendered by the camera
+    GLuint reflection = 0;
+    if(view->getType() == ViewType::CAMERA || view->getType() == ViewType::TRACKBALL || view->getType() == ViewType::EVENT_BASED_CAMERA)
+        reflection = static_cast<OpenGLCamera*>(view)->getWaterReflectionTexture();
+    if(reflection != 0)
+        OpenGLState::BindTexture(TEX_POSTPROCESS3, GL_TEXTURE_2D, reflection);
+
     oceanShaders_["backsurface"]->Use();
     oceanShaders_["backsurface"]->SetUniform("MVP", view->GetProjectionMatrix() * view->GetViewMatrix());
     oceanShaders_["backsurface"]->SetUniform("MV", glm::mat3(glm::transpose(glm::inverse(view->GetViewMatrix()))));
@@ -260,11 +282,14 @@ void OpenGLFlatOcean::DrawBacksurface(OpenGLView* view)
     oceanShaders_["backsurface"]->SetUniform("viewport", glm::vec2((GLfloat)viewport[2], (GLfloat)viewport[3]));
     oceanShaders_["backsurface"]->SetUniform("texWaveFFT", TEX_POSTPROCESS1);
     oceanShaders_["backsurface"]->SetUniform("texSlopeVariance", TEX_POSTPROCESS2);
+    oceanShaders_["backsurface"]->SetUniform("texReflection", TEX_POSTPROCESS3);
+    oceanShaders_["backsurface"]->SetUniform("reflectionEnabled", reflection != 0 ? 1.f : 0.f);
     OpenGLState::BindVertexArray(vao_);
     glCullFace(GL_FRONT);
     glDrawArrays(GL_TRIANGLES, 0, 12);
     glCullFace(GL_BACK);
     OpenGLState::BindVertexArray(0);
+    OpenGLState::UnbindTexture(TEX_POSTPROCESS3);
     OpenGLState::UnbindTexture(TEX_POSTPROCESS2);
     OpenGLState::UnbindTexture(TEX_POSTPROCESS1);
     OpenGLState::UseProgram(0);

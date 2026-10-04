@@ -26,6 +26,14 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - *Moved force/thrust limits of the push and simple thruster actuators to a* ``limits`` *element, defined as absolute values for each direction*
 - *Renamed XML attributes:* ``minimum_layer_size`` → ``minimum_layer_thickness`` (DVL), ``thrust_coeff_backward`` → ``thrust_coeff_reverse`` (propeller)
 - *Per-axis sensor attributes have to be defined as three values in XML*
+- Added reduction of thruster force close to the water surface (partial immersion and ventilation of the propeller)
+- Added optional reaction torque (``torque_ratio``) to the quadratic, deadband and linear interpolation thrust models, including parser support
+- Added optional motor torque limit (``max_torque``) to the mechanical PI rotor dynamics model, including parser support
+- *Fixed thrust of left-hand propellers for the quadratic, deadband and linear interpolation thrust models (forward and reverse characteristics were swapped)*
+- *Fixed numerical instability of the first order, Yoerger, Bessa and mechanical PI rotor dynamics models for large time steps*
+- Fixed limiting of the propeller angular velocity for the rotor dynamics models with torque or voltage input
+- Fixed handling of unsorted and repeated data points in the linear interpolation thrust model
+- Fixed crashes of the rudder and the fluid dynamics thrust model parser when the ocean is not enabled, and uninitialized setpoints of the simple thruster
 - Fixed aerodynamic drag (linear instead of quadratic)
 - Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)

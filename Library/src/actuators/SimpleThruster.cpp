@@ -45,6 +45,8 @@ SimpleThruster::SimpleThruster(std::string_view uniqueName, std::unique_ptr<Soli
     theta_ = Scalar(0);
     thrust_ = Scalar(0);
     torque_ = Scalar(0);
+    sThrust_ = Scalar(0);
+    sTorque_ = Scalar(0);
     SetThrustLimits(BT_LARGE_FLOAT, BT_LARGE_FLOAT); // No limits
     SetSetpoint(Scalar(0.), Scalar(0.));
 }

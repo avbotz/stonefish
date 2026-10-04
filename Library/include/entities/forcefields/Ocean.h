@@ -134,6 +134,12 @@ namespace sf
         //! A method informing if the particles are enabled.
         bool HasParticles() const;
 
+        //! A method to enable rendering of caustics (focusing of the sun light by the surface ripples).
+        void SetCaustics(bool enabled);
+
+        //! A method informing if the caustics are enabled.
+        bool HasCaustics() const;
+
         //! A method returning the type of the water.
         Scalar GetWaterType() const;
           

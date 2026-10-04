@@ -72,6 +72,14 @@ bool Ocean::HasParticles() const
         return false;
 }
 
+bool Ocean::HasCaustics() const
+{
+    if(glOcean_ != nullptr)
+        return glOcean_->GetCausticsEnabled();
+    else
+        return false;
+}
+
 Scalar Ocean::GetWaterType() const
 {
     return waterType_;
@@ -119,6 +127,12 @@ void Ocean::SetParticles(bool enabled)
 {
     if(glOcean_ != nullptr)
         glOcean_->SetParticles(enabled);
+}
+
+void Ocean::SetCaustics(bool enabled)
+{
+    if(glOcean_ != nullptr)
+        glOcean_->SetCaustics(enabled);
 }
 
 void Ocean::SetConditions(Scalar waterTemp)

@@ -34,6 +34,13 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - Fixed limiting of the propeller angular velocity for the rotor dynamics models with torque or voltage input
 - Fixed handling of unsorted and repeated data points in the linear interpolation thrust model
 - Fixed crashes of the rudder and the fluid dynamics thrust model parser when the ocean is not enabled, and uninitialized setpoints of the simple thruster
+- *Fixed joints between rigid bodies behaving like undamped springs (joint velocity correction of the solver was disabled); the global damping of bodies is now a separate setting (``SimulationManager::SetBodyDamping()``)*
+- Fixed spinning friction torque at contacts, which was computed from the sum instead of the difference of the body spins
+- Fixed contact slip velocity computed for rotated bodies (friction model)
+- Fixed real-time simulation freezing when the system clock went backwards or the realtime factor was changed
+- Limited the amount of simulation time advanced in one real-time update, to avoid a spiral of death when physics cannot keep up
+- Fixed crash on exit caused by detached threads of the physics thread pool, and by OpenGL resources released after the graphics context was destroyed
+- Fixed friction coefficients used for undefined material pairs
 - Fixed aerodynamic drag (linear instead of quadratic)
 - Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)

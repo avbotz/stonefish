@@ -288,7 +288,7 @@ namespace sf
 
         //! A method that sets how simulation time relates to real time.
         /*!
-         \param f a multiple of real time (1.0 = real time)
+         \param f a multiple of real time (1.0 = real time, 0.0 = paused)
          */
         void SetRealtimeFactor(Scalar f);
         
@@ -309,13 +309,19 @@ namespace sf
          \param erp error reduction for constraint solving
          \param stopErp error reduction for constraint limit solving
          \param erp2 error reduction for contact solving
-         \param globalDamping damping added globally to all dynamic bodies
+         \param globalDamping damping added globally to all dynamic bodies (see SetBodyDamping)
          \param globalFriction friction added globally to all dynamic bodies
          \param linearSleepingThreshold a linear velocity below which the dynamic bodies will sleep [m/s]
          \param angularSleepingThreshold an angular velocity below which the dynamic bodies will sleep [rad/s]
         */
         void SetSolverParams(Scalar erp, Scalar stopErp, Scalar erp2, Scalar globalDamping, Scalar globalFriction, 
                                 Scalar linearSleepingThreshold, Scalar angularSleepingThreshold);
+
+        //! A method that sets the non-physical damping applied to the linear and angular velocity of all dynamic bodies.
+        /*!
+         \param damping a damping factor <0,1> (0 = no damping), affecting the bodies added to the simulation after the call (reset when the solver is initialized)
+         */
+        void SetBodyDamping(Scalar damping);
 
         //! A method that sets the display mode of dynamical rigid bodies.
         /*!
@@ -337,6 +343,9 @@ namespace sf
 
         //! A method returning the flag that enables automatic calling of the SimulationStepCompleted method.
         bool GetCallSimulationStepCompleted() const;
+
+        //! A method returning the fluid dynamics prescaler (number of simulation steps between recomputations of fluid forces).
+        unsigned int GetFluidDynamicsPrescaler() const;
         
         //! A method returning the axis-aligned bounding box of the simulation world.
         /*!
@@ -508,6 +517,9 @@ namespace sf
 
         //! A method returning the simulation setup related to joint constraints.
         void GetJointErp(Scalar& erp, Scalar& stopErp) const;
+
+        //! A method returning the non-physical damping applied to all dynamic bodies.
+        Scalar GetBodyDamping() const;
         
         //------ Aliases created to shorten the code needed to build the scenario ------
         
@@ -577,6 +589,10 @@ namespace sf
         uint64_t currentTime_;  // Current system time in us
         uint64_t timeOffset_;   // Offset between simulation time and system time in us
         uint64_t ssus_;         // Simulation step time in us
+        uint64_t clockBase_;    // Simulation clock at the last change of realtime factor in us
+        int64_t clockBaseRealTime_; // Monotonic real time at the last change of realtime factor in us
+        uint64_t droppedTime_;  // Real time not simulated since the last warning in us
+        int64_t lastDropWarning_; // Monotonic real time of the last warning about dropped time in us
         bool simulationFresh_;
         bool callSimulationStepCompleted_;
 
@@ -610,6 +626,7 @@ namespace sf
         Scalar angSleepThreshold_;
         Scalar jointErp_;
         Scalar jointLimitErp_;
+        Scalar bodyDamping_;
     
         // Scenario
         std::unique_ptr<NameManager> nameManager_;

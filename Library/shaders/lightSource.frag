@@ -61,10 +61,10 @@ void main()
 	vec3 posSky = vec3(P.xy/atmLengthUnitInMeters, clamp(P.z/atmLengthUnitInMeters, -100000.0/atmLengthUnitInMeters, -0.5/atmLengthUnitInMeters));
 	vec3 skyIlluminance;
     vec3 sunIlluminance = GetSunAndSkyIlluminance(posSky - center, N, sunDirection, skyIlluminance);
-    fragColor = color * skyIlluminance;
+    fragColor = color * skyIlluminance / 3.14159265359;
 	
-	//Sun
-	fragColor += SunContribution(P, N, toEye, color, sunIlluminance);
+	//Sun (illuminance converted to normal incidence, the cosine law is applied by the shading model)
+	fragColor += SunContribution(P, N, toEye, color, sunIlluminance/max(dot(N, sunDirection), 1e-6));
 	
 	fragColor = fragColor/whitePoint; //Color correction and normalization
 	

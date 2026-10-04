@@ -360,12 +360,13 @@ void OpenGLPipeline::Render(SimulationManager* sim)
     //Choose rendering mode
     unsigned int renderMode = 0; //Defaults to rendering without ocean
     Ocean* ocean = sim->GetOcean();
+    Atmosphere* atm = sim->GetAtmosphere();
     if(ocean != nullptr)
     {
         ocean->GetOpenGlOcean()->Simulate(dt);
+        ocean->GetOpenGlOcean()->GenerateCaustics(atm->GetOpenGlAtmosphere()->GetSunDirection(), dt);
         renderMode = rSettings_.ocean > RenderQuality::DISABLED && ocean->IsRenderable() ? 1 : 0;
     }
-    Atmosphere* atm = sim->GetAtmosphere();
     OpenGLState::EnableDepthTest();
     OpenGLState::EnableCullFace();
     
@@ -571,12 +572,13 @@ void OpenGLPipeline::Render(SimulationManager* sim)
                 OpenGLLight::SetCamera(camera);
                 std::vector<GLint> viewport = camera->GetViewport();
                 content_->SetViewportSize(viewport[2],viewport[3]);
+                bool underwater = renderMode == 1 && ocean->GetDepth(camera->GetEyePosition()) > 0.0;
             
-                //Bake parallel-split shadowmaps for sun
+                //Bake parallel-split shadowmaps for sun (refracted by the water surface when looking from under water)
                 if(rSettings_.shadows > RenderQuality::DISABLED)
                 {
                     content_->SetDrawingMode(DrawingMode::SHADOW);
-                    atm->GetOpenGlAtmosphere()->BakeShadowmaps(this, camera);
+                    atm->GetOpenGlAtmosphere()->BakeShadowmaps(this, camera, underwater);
                 }
                 atm->GetOpenGlAtmosphere()->SetupMaterialShaders();
             
@@ -613,11 +615,12 @@ void OpenGLPipeline::Render(SimulationManager* sim)
 
                     //Two separate rendering paths: above water and under water, 
                     //possible because camera near plane is (virtually) removed with logarithmic depth buffer.
-                    glm::vec3 eye = camera->GetEyePosition();
-                    if(ocean->GetDepth(eye) > 0.0) //Underwater
+                    if(underwater)
                     {  
                         content_->SetDrawingMode(DrawingMode::UNDERWATER);
                         DrawObjects();
+                        if(!ocean->HasWaves() && camera->CanSeeWaterSurface()) //Mirror image of the scene on the flat water surface (total internal reflection)
+                            camera->RenderWaterReflection(this);
                         glOcean->DrawBackground(camera);
                         glOcean->DrawBacksurface(camera);
                         //camera->GenerateBloom();
@@ -639,8 +642,8 @@ void OpenGLPipeline::Render(SimulationManager* sim)
                             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
                             camera->GenerateLinearDepth(false);
                             
-                            //Draw screen-space reflections
-                            camera->DrawSSR();
+                            //Draw screen-space reflections (including total internal reflection at the water surface)
+                            camera->DrawSSR(true);
                         }
 
                         //Draw bloom effect simulating scattering

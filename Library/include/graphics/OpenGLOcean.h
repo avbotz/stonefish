@@ -29,6 +29,15 @@
 #include <SDL2/SDL_mutex.h>
 #include <map>
 
+//Capillary ripples and caustics (keep constants in sync with ocean shaders)
+#define MAX_RIPPLE_WAVES 32
+#define RIPPLE_TILE_SIZE 2.5f
+#define RIPPLE_TEX_SIZE 512
+#define CAUSTICS_TEX_SIZE 512
+#define CAUSTICS_LAYERS 12
+#define CAUSTICS_DEPTH0 0.25f
+#define CAUSTICS_GRID_SIZE 384
+
 namespace sf
 {
     //! A structure holding parameters of ocean generation and rendering.
@@ -177,6 +186,22 @@ namespace sf
          */
         void AssignParticles(OpenGLView* view, const std::shared_ptr<OpenGLOceanParticles>& particles);
 
+        //! A method that generates the height field of capillary ripples and the caustics maps for the current frame.
+        /*!
+         \param sunDirection a unit vector pointing towards the sun
+         \param dt time step of the animation [s]
+         */
+        void GenerateCaustics(glm::vec3 sunDirection, GLfloat dt);
+
+        //! A method to set the amplitude of capillary ripples covering the water surface.
+        /*!
+         \param rmsSlope the root mean square slope of the surface [rad] (0 means perfectly flat surface)
+         */
+        void setRipples(GLfloat rmsSlope);
+
+        //! A method returning the root mean square slope of capillary ripples.
+        GLfloat getRipples();
+
         //! A method to set the type of ocean water.
         /*!
          \param t type of water
@@ -242,6 +267,20 @@ namespace sf
         GLuint oceanFBOs_[3];
         GLuint oceanTextures_[6];
         GLuint oceanCurrentsUBO_;
+
+        //Capillary ripples and caustics
+        GLuint rippleTexture_;
+        GLuint rippleFBO_;
+        GLuint causticsTexture_;
+        GLuint causticsFBO_;
+        GLuint causticsVAO_;
+        GLuint causticsBuffers_[2];
+        GLsizei causticsIndexCount_;
+        std::vector<glm::vec4> rippleWaves_; //Wave vector [rad/m], amplitude [m], initial phase [rad]
+        std::vector<GLfloat> rippleOmega_; //Angular frequency [rad/s]
+        GLfloat rippleSlope_;
+        GLfloat rippleTime_;
+        bool causticsUniform_;
         
     private:
         std::vector<GLfloat> ComputeButterflyLookupTable(unsigned int size, unsigned int passes);

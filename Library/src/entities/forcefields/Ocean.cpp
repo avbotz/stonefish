@@ -210,21 +210,23 @@ void Ocean::ApplyFluidForces(btDynamicsWorld* world, btCollisionObject* co, bool
 {
     Entity* ent;
     
-    if (btRigidBody* rb = dynamic_cast<btRigidBody*>(co))
+    //upcast() is a cheap internal type check, contrary to dynamic_cast, which is costly
+    //here because this runs for every overlapping body in every simulation step.
+    if (btRigidBody* rb = btRigidBody::upcast(co))
     {
         if (rb->isStaticOrKinematicObject())
             return;
         else
             ent = static_cast<Entity*>(rb->getUserPointer());
     }
-    else if (btMultiBodyLinkCollider* mbl = dynamic_cast<btMultiBodyLinkCollider*>(co))
+    else if (btMultiBodyLinkCollider* mbl = btMultiBodyLinkCollider::upcast(co))
     {
         if (mbl->isStaticOrKinematicObject())
             return;
         else
             ent = static_cast<Entity*>(mbl->getUserPointer());
     }
-    else if (btSoftBody* sb = dynamic_cast<btSoftBody*>(co))
+    else if (btSoftBody* sb = btSoftBody::upcast(co))
     {
         ent = static_cast<Entity*>(sb->getUserPointer());
     }

@@ -127,6 +127,9 @@ namespace sf
     protected:
         void Loop();
 
+        //! A method creating the physics thread pool, if it is needed and not running yet.
+        void CreatePhysicsThreadPool();
+
         virtual void Init();
         virtual void LoopInternal() = 0;
         virtual void CleanUp();

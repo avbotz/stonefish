@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <map>
+#include <utility>
 #include "StonefishCommon.h"
 #include "entities/forcefields/Ocean.h"
 #include "entities/forcefields/Atmosphere.h"
@@ -586,6 +588,7 @@ namespace sf
         Scalar cpuUsage_;
         unsigned int fdPrescaler_;
         unsigned int fdCounter_;
+        std::vector<btCollisionObject*> fluidBodies_; //Reused between steps to avoid reallocating every step
         
         // Threading
         SDL_mutex* simSettingsMutex_;
@@ -620,6 +623,8 @@ namespace sf
         std::vector<std::unique_ptr<Actuator, ActuatorDeleter>> actuators_;
         std::vector<std::unique_ptr<Comm, CommDeleter>> comms_;
         std::vector<std::unique_ptr<Contact>> contacts_;
+        //Looked up for every contact manifold in every step, so a linear search does not do
+        std::map<std::pair<const Entity*, const Entity*>, Contact*> contactLookup_;
         
         // Collision pairs
         std::vector<Collision> collisions_;

@@ -87,6 +87,13 @@ namespace sf
         
         //! A method returning the mass or the sum of mass and added mass (depending on type of body).
         Scalar getAugmentedMass() const;
+
+        //! A method used to override the added mass and added inertia of the compound body (computed from its parts).
+        /*!
+         \param addedMass the added mass along the axes of the body origin frame (negative components are not changed) [kg]
+         \param addedInertia the added moments of inertia about the axes of the body origin frame (negative components are not changed) [kgm^2]
+         */
+        void SetAddedMass(const Vector3& addedMass, const Vector3& addedInertia) override;
         
         //! A method returning the inertia or the sum of inertia and added mass (depending on type of body).
         Vector3 getAugmentedInertia() const;

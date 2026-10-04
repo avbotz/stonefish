@@ -632,7 +632,9 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
             item->QueryAttribute("temperature", &waterTemperature);
         }
         
-        std::string waterName = sm_->getMaterialManager()->CreateFluid("Water", waterDensity, 1.308e-3, 1.55); 
+        //Dynamic viscosity of water as a function of temperature (Vogel equation) [Pa*s]
+        Scalar waterViscosity = Scalar(2.414e-5) * btPow(Scalar(10), Scalar(247.8)/(waterTemperature + Scalar(273.15) - Scalar(140)));
+        std::string waterName = sm_->getMaterialManager()->CreateFluid("Water", waterDensity, waterViscosity, 1.33); 
         sm_->EnableOcean(wavesHeight, sm_->getMaterialManager()->getFluid(waterName));
         sm_->getOcean()->setWaterType(jerlov);
         sm_->getOcean()->SetConditions(waterTemperature);
@@ -1855,6 +1857,19 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
     }
     else
     {
+
+        //Added mass of the whole body (e.g. identified experimentally), overriding the sum of the parts
+        if((item = element->FirstChildElement("hydrodynamics")) != nullptr)
+        {
+            const char* xyz = nullptr;
+            Vector3 aM(-1,-1,-1);
+            Vector3 aI(-1,-1,-1);
+            if(item->QueryStringAttribute("added_mass", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aM);
+            if(item->QueryStringAttribute("added_inertia", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aI);
+            comp->SetAddedMass(aM, aI);
+        }
         //---- Common ----
         const char* mat = nullptr;
         const char* look = nullptr;
@@ -1871,6 +1886,8 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
         float uvScale = 1.f;
         
         //Material
+        Vector3 aM(-1,-1,-1);
+        Vector3 aI(-1,-1,-1);
         if((item = element->FirstChildElement("material")) == nullptr
             || item->QueryStringAttribute("name", &mat) != XML_SUCCESS)
         {
@@ -1913,6 +1930,10 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
         //Origin    
         if(typeStr != "model")
         {
+            if(item->QueryStringAttribute("added_mass", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aM);
+            if(item->QueryStringAttribute("added_inertia", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aI);
             if((item = element->FirstChildElement("origin")) == nullptr || !ParseTransform(item, origin))
             {
                 log.Print(MessageType::ERROR, "Definition of origin frame of rigid body '%s' missing!", solidName.c_str());
@@ -2077,6 +2098,7 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
     //Contact properties (soft contact)
     if(!compoundPart)
     {
+        solid->SetAddedMass(aM, aI);
         Scalar contactK;
         Scalar contactD;
         

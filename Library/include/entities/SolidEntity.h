@@ -107,11 +107,34 @@ namespace sf
          \param _Fdf the skin friction force [N]
          \param _Tdf the torque induced by the skin friction force [Nm]
          \param fdCd the form drag coefficient
-         \param fdCf the skin friction coefficient
+         \param fdCf the skin friction coefficient (negative components are replaced by Cf0)
          \param T_O a transform from the world frame to the body origin frame
+         \param Cf0 the skin friction coefficient estimated for the current flow conditions
         */
         static void CorrectHydrodynamicForces(Ocean* ocn, Vector3& _Fdq, Vector3& _Tdq, Vector3& _Fdf, Vector3& _Tdf, 
-            const Vector3& fdCd, const Vector3& fdCf, const Transform& T_O);
+            const Vector3& fdCd, const Vector3& fdCf, const Transform& T_O, Scalar Cf0);
+        
+        //! A static method that estimates the skin friction coefficient of a turbulent boundary layer (ITTC-1957).
+        /*!
+         \param ocn a pointer to the ocean entity (defines the liquid)
+         \param speed the speed of the body with respect to the liquid [m/s]
+         \param length the characteristic length of the body [m]
+         \return the skin friction coefficient
+        */
+        static Scalar SkinFrictionCoefficient(Ocean* ocn, Scalar speed, Scalar length);
+        
+        //! A method returning the characteristic length of the body, used to compute the Reynolds number.
+        virtual Scalar getCharacteristicLength() const;
+        
+        //! A method used to override the automatically estimated added mass and added inertia of the body.
+        /*!
+         \param addedMass the added mass along the axes of the body origin frame (negative components are not changed) [kg]
+         \param addedInertia the added moments of inertia about the axes of the body origin frame (negative components are not changed) [kgm^2]
+         */
+        virtual void SetAddedMass(const Vector3& addedMass, const Vector3& addedInertia);
+
+        //! A method returning the ratio of the liquid volume displaced by a (flooded) shell body to the volume enclosed by its surface.
+        Scalar getShellBuoyancyRatio() const;
         
         //! A static method that computes fluid dynamics when a body is crossing the fluid surface.
         /*!
@@ -200,6 +223,12 @@ namespace sf
         
         //! A method which applies precomputed hydrodynamic forces to the body.
         virtual void ApplyHydrodynamicForces();
+        
+        //! A method that corrects the accumulated external force to account for the anisotropic added mass (called after all forces are applied).
+        /*!
+         \param ocn a pointer to the ocean entity
+         */
+        void ApplyAddedMassCorrection(Ocean* ocn);
         
         //! A method which applies precomputed aerodynamic forces to the body.
         virtual void ApplyAerodynamicForces();
@@ -334,6 +363,9 @@ namespace sf
       
 		//! A method returning the hydrodynamic added mass (diagonal elements).
 		Vector3 getAddedMass() const;
+
+        //! A method returning the added mass tensor of the body (expressed in the CG frame).
+        Matrix3 getAddedMassTensor() const;
 	  
 		//! A method returning the hydrodynamic added inertia (diagonal elements).
 		Vector3 getAddedInertia() const;
@@ -390,7 +422,8 @@ namespace sf
         void ComputeCylindricalApprox();
         void ComputeEllipsoidalApprox();
         
-        Scalar LambKFactor(Scalar r1, Scalar r2);
+        static void EllipsoidLambCoefficients(Scalar a, Scalar b, Scalar c, Scalar& alpha0, Scalar& beta0, Scalar& gamma0);
+        static void EllipsoidAddedMass(Scalar a, Scalar b, Scalar c, Scalar rho, Vector3& addedMass, Vector3& addedInertia);
         virtual void BuildRigidBody(btDynamicsWorld* world);
         void BuildMultibodyLinkCollider(btMultiBody* mb, unsigned int child, btSoftMultiBodyDynamicsWorld* world);
         
@@ -418,7 +451,8 @@ namespace sf
         Transform T_O2C_; //Transform between body origin and physics origin
         Transform T_O2H_; //Transform between body origin and geometry approximation origin
         
-        Vector3 aMass_; //Hydrodynamic added mass
+        Vector3 aMass_; //Hydrodynamic added mass (diagonal of the added mass tensor)
+        Matrix3 aMassT_; //Hydrodynamic added mass tensor (CG frame)
 		Vector3 aI_; //Hydrodynamic added inertia
         GeometryApproxType fdApproxType_;
         std::vector<Scalar> fdApproxParams_;

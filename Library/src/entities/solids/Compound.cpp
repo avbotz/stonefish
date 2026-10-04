@@ -57,7 +57,14 @@ bool Compound::isDisplayingInternalParts()
 
 Scalar Compound::getAugmentedMass() const
 {
-    return mass_ + aMass_.x();
+    return mass_ + (aMass_.x() + aMass_.y() + aMass_.z())/Scalar(3);
+}
+
+void Compound::SetAddedMass(const Vector3& addedMass, const Vector3& addedInertia)
+{
+    Vector3 aIold = aI_;
+    SolidEntity::SetAddedMass(addedMass, addedInertia);
+    Ipri_ += aI_ - aIold; //Principal moments of the compound include the added inertia
 }
         
 Vector3 Compound::getAugmentedInertia() const
@@ -153,7 +160,7 @@ void Compound::RecalculatePhysicalProperties()
     Vector3 compoundCG(0,0,0); //In compound body origin frame
     Vector3 compoundCB(0,0,0); //In compound body origin frame
     Scalar compoundMass(0);
-    Scalar compoundAugmentedMass(0);
+    Matrix3 compoundAddedMass(0,0,0,0,0,0,0,0,0); //In compound body origin frame
     Scalar compoundVolume(0);
     Scalar compoundSurface(0);
     
@@ -164,8 +171,13 @@ void Compound::RecalculatePhysicalProperties()
     {
         //Mechanical parameters
         compoundMass += parts_[i].solid->getMass();
-        compoundAugmentedMass += parts_[i].isExternal ? parts_[i].solid->getAugmentedMass() : parts_[i].solid->getMass();
         compoundCG += (parts_[i].origin * parts_[i].solid->getCG2OTransform().inverse()).getOrigin() * parts_[i].solid->getMass();
+
+        if(parts_[i].isExternal && parts_[i].solid->getPhysicsMode() == PhysicsMode::SUBMERGED) //Added mass tensor of the part in the compound origin frame
+        {
+            Matrix3 partToComp = (parts_[i].origin * parts_[i].solid->getCG2OTransform().inverse()).getBasis();
+            compoundAddedMass += partToComp * parts_[i].solid->getAddedMassTensor() * partToComp.transpose();
+        }
         
         if(parts_[i].solid->isBuoyant())
         {
@@ -184,6 +196,7 @@ void Compound::RecalculatePhysicalProperties()
     
     //2. Calculate compound inertia matrix
     Matrix3 I = Matrix3(0,0,0,0,0,0,0,0,0);
+    Matrix3 Iadded = Matrix3(0,0,0,0,0,0,0,0,0); //Part of the inertia matrix resulting from added mass
         
     for(unsigned int i=0; i<parts_.size(); ++i)
     {
@@ -195,12 +208,19 @@ void Compound::RecalculatePhysicalProperties()
         Transform compToPart = T_CG2O_ * parts_[i].origin * parts_[i].solid->getCG2OTransform().inverse();
         solidInertia = compToPart.getBasis() * solidInertia * compToPart.getBasis().transpose();
             
-        //Translate inertia tensor from part CG to compound CG
+        //Translate inertia tensor from part CG to compound CG (parallel axis theorem for the mass and the added mass of the part)
         Vector3 t = compToPart.getOrigin();
-        Scalar m = parts_[i].isExternal ? parts_[i].solid->getAugmentedMass() : parts_[i].solid->getMass();
-        solidInertia += Matrix3(t.y()*t.y()+t.z()*t.z(),            -t.x()*t.y(),            -t.x()*t.z(),
-                                           -t.y()*t.x(), t.x()*t.x()+t.z()*t.z(),            -t.y()*t.z(),
-                                           -t.z()*t.x(),            -t.z()*t.y(), t.x()*t.x()+t.y()*t.y()).scaled(Vector3(m, m, m));
+        Scalar m = parts_[i].solid->getMass();
+        Matrix3 tx(0, -t.z(), t.y(), t.z(), 0, -t.x(), -t.y(), t.x(), 0); //Skew-symmetric matrix of the offset
+        solidInertia -= tx * Matrix3(m, 0, 0, 0, m, 0, 0, 0, m) * tx;
+        if(parts_[i].isExternal && parts_[i].solid->getPhysicsMode() == PhysicsMode::SUBMERGED)
+        {
+            Matrix3 B = compToPart.getBasis();
+            Vector3 ai = parts_[i].solid->getAddedInertia();
+            Matrix3 addedMassOffset = tx * B * parts_[i].solid->getAddedMassTensor() * B.transpose() * tx;
+            solidInertia -= addedMassOffset;
+            Iadded += B * Matrix3(ai.x(), 0, 0, 0, ai.y(), 0, 0, 0, ai.z()) * B.transpose() - addedMassOffset;
+        }
             
         //Accumulate inertia tensor
         I += solidInertia;
@@ -210,31 +230,18 @@ void Compound::RecalculatePhysicalProperties()
     Vector3 compoundPriInertia(I.getRow(0).getX(), I.getRow(1).getY(), I.getRow(2).getZ());
     
     //Check if inertia matrix is not diagonal
+    Matrix3 principalAxes = Matrix3::getIdentity();
     if(!(btFuzzyZero(I.getRow(0).getY()) && btFuzzyZero(I.getRow(0).getZ())
          && btFuzzyZero(I.getRow(1).getX()) && btFuzzyZero(I.getRow(1).getZ())
          && btFuzzyZero(I.getRow(2).getX()) && btFuzzyZero(I.getRow(2).getY())))
     {
-        //3.1. Calculate principal moments of inertia
-        Scalar T = I[0][0] + I[1][1] + I[2][2]; //Ixx + Iyy + Izz
-        Scalar II = I[0][0]*I[1][1] + I[0][0]*I[2][2] + I[1][1]*I[2][2] - I[0][1]*I[0][1] - I[0][2]*I[0][2] - I[1][2]*I[1][2]; //Ixx Iyy + Ixx Izz + Iyy Izz - Ixy^2 - Ixz^2 - Iyz^2
-        Scalar U = btSqrt(T*T-Scalar(3.)*II)/Scalar(3.);
-        Scalar theta = btAcos((-Scalar(2.)*T*T*T + Scalar(9.)*T*II - Scalar(27.)*I.determinant())/(Scalar(54.)*U*U*U));
-        Scalar A = T/Scalar(3.) - Scalar(2.)*U*btCos(theta/Scalar(3.));
-        Scalar B = T/Scalar(3.) - Scalar(2.)*U*btCos(theta/Scalar(3.) - Scalar(2.)*M_PI/Scalar(3.));
-        Scalar C = T/Scalar(3.) - Scalar(2.)*U*btCos(theta/Scalar(3.) + Scalar(2.)*M_PI/Scalar(3.));
-        compoundPriInertia = Vector3(A, B, C);
+        //3.1. Calculate principal moments and axes of inertia (Jacobi method, always gives a proper rotation)
+        Matrix3 Ip = I;
+        Ip.diagonalize(principalAxes, Scalar(1e-9), 100);
+        compoundPriInertia = Vector3(Ip[0][0], Ip[1][1], Ip[2][2]);
     
-        //3.2. Calculate principal axes of inertia
-        Matrix3 L;
-        Vector3 axis1,axis2,axis3;
-        axis1 = FindInertialAxis(I, A);
-        axis2 = FindInertialAxis(I, B);
-        axis3 = axis1.cross(axis2);
-        axis2 = axis3.cross(axis1);
-    
-        //3.3. Rotate body so that principal axes are parallel to (x,y,z) system
-        Matrix3 rotMat(axis1[0],axis2[0],axis3[0], axis1[1],axis2[1],axis3[1], axis1[2],axis2[2],axis3[2]);
-        T_CG2O_ = Transform(rotMat, Vector3(0,0,0)).inverse() * T_CG2O_;
+        //3.2. Rotate body so that principal axes are parallel to (x,y,z) system
+        T_CG2O_ = Transform(principalAxes, Vector3(0,0,0)).inverse() * T_CG2O_;
     }
     
     T_CG2C_ = T_CG2G_ = T_CG2O_;
@@ -243,9 +250,10 @@ void Compound::RecalculatePhysicalProperties()
     P_CB_ = T_CG2O_ * compoundCB;
     
     mass_ = compoundMass;
-    aMass_.setX(compoundAugmentedMass - compoundMass);
-    aMass_.setY(compoundAugmentedMass - compoundMass);
-    aMass_.setZ(compoundAugmentedMass - compoundMass);
+    aMassT_ = principalAxes.transpose() * compoundAddedMass * principalAxes; //To compound CG frame
+    aMass_ = Vector3(aMassT_[0][0], aMassT_[1][1], aMassT_[2][2]);
+    Iadded = principalAxes.transpose() * Iadded * principalAxes;
+    aI_ = Vector3(Iadded[0][0], Iadded[1][1], Iadded[2][2]);
     volume_ = compoundVolume;
     surface_ = compoundSurface;
     Ipri_ = compoundPriInertia;
@@ -312,6 +320,8 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
             //Get velocity data
             Vector3 v = getLinearVelocity();
             Vector3 omega = getAngularVelocity();
+            Scalar speed = (ocn->GetFluidVelocity(getCGTransform().getOrigin()) - v).length();
+            Scalar Cf0 = SkinFrictionCoefficient(ocn, speed, getCharacteristicLength());
             
             //Create temporary vectors for summing
             Vector3 Fdqp(0,0,0);
@@ -330,7 +340,7 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
                     ComputeHydrodynamicForcesSubmerged(parts_[i].solid->getPhysicsMesh(), ocn, getCGTransform(), T_C_part, v, omega, Fdqp, Tdqp, Fdfp, Tdfp);
                     Vector3 Cd, Cf;
                     parts_[i].solid->getHydrodynamicCoefficients(Cd, Cf);
-                    CorrectHydrodynamicForces(ocn, Fdqp, Tdqp, Fdfp, Tdfp, Cd, Cf, T_O_part);
+                    CorrectHydrodynamicForces(ocn, Fdqp, Tdqp, Fdfp, Tdfp, Cd, Cf, T_O_part, Cf0);
                     Fdq_ += Fdqp;
                     Tdq_ += Tdqp;
                     Fdf_ += Fdfp;
@@ -366,6 +376,8 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
             //Get velocity data
             Vector3 v = getLinearVelocity();
             Vector3 omega = getAngularVelocity();
+            Scalar speed = (ocn->GetFluidVelocity(getCGTransform().getOrigin()) - v).length();
+            Scalar Cf0 = SkinFrictionCoefficient(ocn, speed, getCharacteristicLength());
         
             //Create temporary vectors for summing
             Vector3 Fbp(0,0,0);
@@ -388,12 +400,17 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
                 HydrodynamicsSettings pSettings = settings;
                 pSettings.reallisticBuoyancy &= parts_[i].solid->isBuoyant();
 
+                Scalar shellRatio = parts_[i].solid->getShellBuoyancyRatio();
+
                 if(parts_[i].isExternal) //Compute buoyancy and drag
                 {
                     ComputeHydrodynamicForcesSurface(pSettings, parts_[i].solid->getPhysicsMesh(), ocn, getCGTransform(), T_C_part, v, omega, Fbp, Tbp, Fdqp, Tdqp, Fdfp, Tdfp, Swetp, Vsubp, submerged_);
+                    Fbp *= shellRatio;
+                    Tbp *= shellRatio;
+                    Vsubp *= shellRatio;
                     Vector3 Cd, Cf;
                     parts_[i].solid->getHydrodynamicCoefficients(Cd, Cf);
-                    CorrectHydrodynamicForces(ocn, Fdqp, Tdqp, Fdfp, Tdfp, Cd, Cf, T_O_part);
+                    CorrectHydrodynamicForces(ocn, Fdqp, Tdqp, Fdfp, Tdfp, Cd, Cf, T_O_part, Cf0);
                     Fb_ += Fbp;
                     Tb_ += Tbp;
                     Fdq_ += Fdqp;
@@ -407,6 +424,9 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
                 {
                     pSettings.dampingForces = false;
                     ComputeHydrodynamicForcesSurface(pSettings, parts_[i].solid->getPhysicsMesh(), ocn, getCGTransform(), T_C_part, v, omega, Fbp, Tbp, Fdqp, Tdqp, Fdfp, Tdfp, Swetp, Vsubp, submerged_);
+                    Fbp *= shellRatio;
+                    Tbp *= shellRatio;
+                    Vsubp *= shellRatio;
                     Fb_ += Fbp;
                     Tb_ += Tbp;
                     Vsub_ += Vsubp;

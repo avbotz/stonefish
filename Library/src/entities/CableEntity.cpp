@@ -245,7 +245,12 @@ void CableEntity::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocea
     for (size_t i = 0; i < nodalForces_.size(); ++i)
         nodalForces_[i].clearForces();
 
-    for (int i = 0; i < cableBody_->m_nodes.size()-1; ++i)
+    // Time during which the computed forces are applied (stability of drag)
+    SimulationManager* sm = SimulationApp::getApp()->getSimulationManager();
+    Scalar holdTime = Scalar(sm->getFluidDynamicsPrescaler()) / sm->getStepsPerSecond();
+
+    size_t numNodes = cableBody_->m_nodes.size();
+    for (size_t i = 0; i < numNodes-1; ++i)
     {
         // Segment
         Vector3 p1 = cableBody_->m_nodes[i].m_x;
@@ -324,17 +329,24 @@ void CableEntity::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocea
             }
         }
 
+        // Distribution of segment forces to its nodes:
+        // all nodes have equal mass M/N, so node j represents the part [j, j+1]*L/N of the cable, while segment i spans [i, i+1]*L/(N-1).
+        // Splitting the segment force in proportion to the overlap of these parts conserves the total force and keeps
+        // the force/mass ratio uniform along the cable (e.g., a neutrally buoyant cable is in equilibrium at every node).
+        Scalar w1 = Scalar(numNodes - 1 - i) / Scalar(numNodes); // Weight of node i
+        Scalar w2 = Scalar(i + 1) / Scalar(numNodes); // Weight of node i+1
+
         // Apply buoyancy force
         if (phy_.buoyancy && settings.reallisticBuoyancy)
         {
             // !!! Here it is an approximation because the buoyancy force should be applied at the buoyancy center and then it will generate torque 
             // which will result in asymmetrical forces on both ends of the segment !!!
-            Vector3 buoyancy = -submergedV * ocn->getLiquid().density * SimulationApp::getApp()->getSimulationManager()->getGravity();
-            nodalForces_[i].Fb += buoyancy / Scalar(2);
-            nodalForces_[i+1].Fb += buoyancy / Scalar(2);
+            Vector3 buoyancy = -submergedV * ocn->getLiquid().density * sm->getGravity();
+            nodalForces_[i].Fb += buoyancy * w1;
+            nodalForces_[i+1].Fb += buoyancy * w2;
         }
 
-        // Drag
+        // Drag (Morison equation for a cylinder, with separate normal and tangential flow components)
         if (settings.dampingForces && submergedV > Scalar(0))
         {
             Vector3 p = (p1 + p2) / Scalar(2);
@@ -344,35 +356,34 @@ void CableEntity::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocea
             Vector3 waterV = ocn->GetFluidVelocity(p);
             Vector3 relV = v - waterV;
         
-            const Scalar Cd {0.5}; // Form drag coefficient
-            const Scalar Cf {0.2}; // Skin friction coefficient
-            Scalar f1 = btFabs(segmentVec.dot(relV));
-            Scalar f2 = submergedV / (Scalar(M_PI) * radius_ * radius_ * segmentLength);
+            const Scalar Cd {1.2}; // Form drag coefficient (cylinder in cross-flow)
+            const Scalar Cf {0.01}; // Skin friction coefficient (flow along the cylinder)
+            Scalar f2 = submergedV / (Scalar(M_PI) * radius_ * radius_ * segmentLength); // Submerged fraction of the segment
+            Vector3 segmentDir = segmentVec / segmentLength;
+            Vector3 relVt = segmentDir * segmentDir.dot(relV); // Tangential relative velocity
+            Vector3 relVn = relV - relVt; // Normal relative velocity
+
+            // Limit of damping coefficient, so that the drag held constant for holdTime cannot reverse the relative velocity (stability of light nodes)
+            Scalar maxDamping = btMax(cableBody_->getMass(i), cableBody_->getMass(i+1)) / holdTime;
 
             // Form drag
             {
-                Scalar S = Scalar(2) * radius_ * segmentLength;
-                Vector3 Fdq = -(Scalar(1) - f1) * f2 * Scalar(0.5) * ocn->getLiquid().density * Cd * S * relV.length() * relV;
-                nodalForces_[i].Fdq += Fdq / Scalar(2);
-                nodalForces_[i+1].Fdq += Fdq / Scalar(2);
+                Scalar S = f2 * Scalar(2) * radius_ * segmentLength; // Projected area
+                Scalar D = btMin(Scalar(0.5) * ocn->getLiquid().density * Cd * S * relVn.length(), maxDamping);
+                Vector3 Fdq = -D * relVn;
+                nodalForces_[i].Fdq += Fdq * w1;
+                nodalForces_[i+1].Fdq += Fdq * w2;
             }
             // Skin friction
             {
-                Scalar S = f2 * (Scalar(2 * M_PI) * radius_ * segmentLength);
-                Vector3 Fdf = -Cf * S * relV;
-                nodalForces_[i].Fdf += Fdf / Scalar(2);
-                nodalForces_[i+1].Fdf += Fdf / Scalar(2);
+                Scalar S = f2 * Scalar(2 * M_PI) * radius_ * segmentLength; // Wetted area
+                Scalar D = btMin(Scalar(0.5) * ocn->getLiquid().density * Cf * S * relVt.length(), maxDamping);
+                Vector3 Fdf = -D * relVt;
+                nodalForces_[i].Fdf += Fdf * w1;
+                nodalForces_[i+1].Fdf += Fdf * w2;
             }
         }
     }
-
-    // Correction for end nodes
-    nodalForces_[0].Fb *= Scalar(2);
-    nodalForces_[cableBody_->m_nodes.size() - 1].Fb *= Scalar(2);
-    nodalForces_[0].Fdq *= Scalar(2);
-    nodalForces_[cableBody_->m_nodes.size() - 1].Fdq *= Scalar(2);
-    nodalForces_[0].Fdf *= Scalar(2);
-    nodalForces_[cableBody_->m_nodes.size() - 1].Fdf *= Scalar(2);
 }
 
 void CableEntity::ApplyHydrodynamicForces()

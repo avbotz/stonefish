@@ -66,6 +66,7 @@ SolidEntity::SolidEntity(const std::string& uniqueName, PhysicsSettings phy, con
     //Set properties
     mass_ = Scalar(0);
     aMass_.setZero();
+    aMassT_ = Matrix3(0,0,0,0,0,0,0,0,0);
     surface_ = Scalar(0);
     aI_.setZero();
     Ipri_.setZero();
@@ -189,6 +190,21 @@ void SolidEntity::SetContactProperties(bool soft, Scalar stiffness, Scalar dampi
             multibodyCollider_->setCollisionFlags(cflags);
         }
     }
+}
+
+void SolidEntity::SetAddedMass(const Vector3& addedMass, const Vector3& addedInertia)
+{
+    //Values defined in the origin frame of the body -> CG frame (principal axes)
+    Matrix3 R = T_CG2O_.getBasis();
+    Matrix3 A = R * Matrix3(btMax(addedMass.x(), Scalar(0)), 0, 0, 0, btMax(addedMass.y(), Scalar(0)), 0, 0, 0, btMax(addedMass.z(), Scalar(0))) * R.transpose();
+    Matrix3 I = R * Matrix3(btMax(addedInertia.x(), Scalar(0)), 0, 0, 0, btMax(addedInertia.y(), Scalar(0)), 0, 0, 0, btMax(addedInertia.z(), Scalar(0))) * R.transpose();
+    if(addedMass.x() >= Scalar(0) && addedMass.y() >= Scalar(0) && addedMass.z() >= Scalar(0))
+    {
+        aMassT_ = A;
+        aMass_ = Vector3(A[0][0], A[1][1], A[2][2]);
+    }
+    if(addedInertia.x() >= Scalar(0) && addedInertia.y() >= Scalar(0) && addedInertia.z() >= Scalar(0))
+        aI_ = Vector3(I[0][0], I[1][1], I[2][2]);
 }
 
 void SolidEntity::SetHydrodynamicCoefficients(const Vector3& Cd, const Vector3& Cf)
@@ -413,9 +429,8 @@ Transform SolidEntity::getCGTransform() const
 {
     if(rigidBody_ != nullptr)
     {
-        Transform trans;
-        rigidBody_->getMotionState()->getWorldTransform(trans);
-        return trans;
+        //Motion state holds an interpolated transform, updated only after the full simulation step -> use current state
+        return rigidBody_->getCenterOfMassTransform();
     }
     else if(multibodyCollider_ != nullptr)
     {
@@ -464,6 +479,7 @@ void SolidEntity::setCGTransform(const Transform& trans)
 {
     if(rigidBody_ != nullptr)
     {
+        rigidBody_->setCenterOfMassTransform(trans);
         rigidBody_->getMotionState()->setWorldTransform(trans);
     }
     else if(multibodyCollider_ != nullptr)
@@ -483,41 +499,15 @@ Vector3 SolidEntity::getLinearVelocity() const
         //Get multibody and link id
         btMultiBody* multiBody = multibodyCollider_->m_multiBody;
         int index = multibodyCollider_->m_link;
+        if(index < 0) //Base
+            return multiBody->getBaseVel(); //Global
         
-        //Start with base velocity
-        Vector3 linVelocity = multiBody->getBaseVel(); //Global
-        Vector3 angVelocity = multiBody->getBaseOmega(); //Global
-        
-        if(index >= 0) //If collider is not base
-        {
-            for(int i = 0; i <= index; ++i) //Accumulate velocity resulting from joints
-            {
-                //Add velocity resulting from rotation of previous links
-                linVelocity += angVelocity.cross(multiBody->localDirToWorld(i, multiBody->getRVector(i)));
-                
-                if(multiBody->getLink(i).m_jointType == btMultibodyLink::ePrismatic) //Just add linear velocity
-                {
-                    Vector3 axis = multiBody->getLink(i).getAxisBottom(0); //Local axis
-                    Vector3 vel = multiBody->getJointVel(i) * axis; //Local velocity
-                    Vector3 gvel = multiBody->localDirToWorld(i, vel); //Global velocity
-                    linVelocity += gvel;
-                }
-                else if(multiBody->getLink(i).m_jointType == btMultibodyLink::eRevolute) //Add linear velocity due to rotation
-                {
-                    //Vector3 axis = multiBody->getLink(i).getAxisBottom(0); //Local linear motion
-                    //Vector3 vel = multiBody->getJointVel(i) * axis; //Local velocity
-                    
-                    Vector3 axis = multiBody->getLink(i).getAxisTop(0); //Axis of joint
-                    Vector3 aVel = multiBody->getJointVel(i) * axis;
-                    Vector3 vel = aVel.cross(multiBody->getLink(i).m_dVector); //Local velocity
-                    Vector3 gvel = multiBody->localDirToWorld(i, vel); //Global linear velocity
-                    linVelocity += gvel;
-                    angVelocity += multiBody->localDirToWorld(i, aVel); //Global angular velocity
-                }
-            }
-        }
-        
-        return linVelocity;
+        //Velocities of all links propagated along the kinematic tree (in local frames of links)
+        btAlignedObjectArray<Vector3> omega, vel;
+        omega.resize(multiBody->getNumLinks() + 1);
+        vel.resize(multiBody->getNumLinks() + 1);
+        multiBody->compTreeLinkVelocities(&omega[0], &vel[0]);
+        return multiBody->localDirToWorld(index, vel[index + 1]); //Global
     }
     else
         return Vector3(0,0,0);
@@ -534,23 +524,15 @@ Vector3 SolidEntity::getAngularVelocity() const
         //Get multibody and link id
         btMultiBody* multiBody = multibodyCollider_->m_multiBody;
         int index = multibodyCollider_->m_link;
+        if(index < 0) //Base
+            return multiBody->getBaseOmega(); //Global
         
-        //Start with base velocity
-        Vector3 angVelocity = multiBody->getBaseOmega(); //Global
-        
-        if(index >= 0)
-        {
-            for(int i = 0; i <= index; ++i) //Accumulate velocity resulting from joints
-                if(multiBody->getLink(i).m_jointType == btMultibodyLink::eRevolute) //Only revolute joints can change angular velocity
-                {
-                    Vector3 axis = multiBody->getLink(i).getAxisTop(0); //Local axis
-                    Vector3 vel = multiBody->getJointVel(i) * axis; //Local velocity
-                    Vector3 gvel = multiBody->localDirToWorld(i, vel); //Global velocity
-                    angVelocity += gvel;
-                }
-        }
-        
-        return angVelocity;
+        //Velocities of all links propagated along the kinematic tree (in local frames of links)
+        btAlignedObjectArray<Vector3> omega, vel;
+        omega.resize(multiBody->getNumLinks() + 1);
+        vel.resize(multiBody->getNumLinks() + 1);
+        multiBody->compTreeLinkVelocities(&omega[0], &vel[0]);
+        return multiBody->localDirToWorld(index, omega[index + 1]); //Global
     }
     else
         return Vector3(0,0,0);
@@ -651,6 +633,11 @@ Vector3 SolidEntity::getAddedMass() const
     return aMass_;
 }
 
+Matrix3 SolidEntity::getAddedMassTensor() const
+{
+    return aMassT_;
+}
+
 Vector3 SolidEntity::getAddedInertia() const
 {
     return aI_;
@@ -744,8 +731,10 @@ void SolidEntity::ComputeSphericalApprox()
     if((ocn = SimulationApp::getApp()->getSimulationManager()->getOcean()) != nullptr)
         rho = ocn->getLiquid().density;
 
-    Scalar m = Scalar(2)*M_PI*rho*r*r*r/Scalar(3);
+    Scalar R = fdApproxParams_[0];
+    Scalar m = Scalar(2)*M_PI*rho*R*R*R/Scalar(3); //Half of the displaced mass
     aMass_ = Vector3(m,m,m);
+    aMassT_ = Matrix3(m, 0, 0, 0, m, 0, 0, 0, m);
     aI_ = V0();
     
     //Set transform with respect to geometry
@@ -753,8 +742,8 @@ void SolidEntity::ComputeSphericalApprox()
     sphereTransform.setOrigin(P_CB_);
     T_CG2H_ = sphereTransform;
 
-    Vector3 Cd(1,1,1);
-    SetHydrodynamicCoefficients(Cd, Scalar(0.1)*Cd); //No need to trasform (all equal)
+    Vector3 Cd(0.47,0.47,0.47); //Sphere in subcritical flow
+    SetHydrodynamicCoefficients(Cd, Vector3(-1,-1,-1)); //Skin friction estimated from the Reynolds number
 }
 
 void SolidEntity::ComputeCylindricalApprox()
@@ -828,20 +817,20 @@ void SolidEntity::ComputeCylindricalApprox()
     if((ocn = SimulationApp::getApp()->getSimulationManager()->getOcean()) != nullptr)
         rho = ocn->getLiquid().density;
 
-    Scalar m1 = rho*M_PI*fdApproxParams_[0]*fdApproxParams_[0]; //Parallel to axis
-    Scalar m2 = rho*M_PI*fdApproxParams_[0]*fdApproxParams_[0]*fdApproxParams_[1]; //Perpendicular to axis
-    Scalar I1 = Scalar(0);
-    Scalar I2 = Scalar(1)/Scalar(12)*M_PI*rho*fdApproxParams_[1]*fdApproxParams_[1]*btPow(fdApproxParams_[0], Scalar(3));
+    //Spheroid with the same second moments of volume as the cylinder (along the cylinder axis z)
+    Vector3 m, I;
+    EllipsoidAddedMass(fdApproxParams_[0]*btSqrt(Scalar(5)/Scalar(4)), fdApproxParams_[0]*btSqrt(Scalar(5)/Scalar(4)), 
+                       fdApproxParams_[1]/Scalar(2)*btSqrt(Scalar(5)/Scalar(3)), rho, m, I);
     
-    aMass_ = T_CG2H_.getBasis() * Vector3(m2, m2, m1);
-    aMass_ = Vector3(btFabs(aMass_.getX()), btFabs(aMass_.getY()), btFabs(aMass_.getZ()));
-    aI_ = T_CG2H_.getBasis() * Vector3(I2, I2, I1);
+    aMassT_ = T_CG2H_.getBasis() * Matrix3(m.x(), 0, 0, 0, m.y(), 0, 0, 0, m.z()) * T_CG2H_.getBasis().transpose();
+    aMass_ = Vector3(aMassT_[0][0], aMassT_[1][1], aMassT_[2][2]);
+    aI_ = T_CG2H_.getBasis() * I;
     aI_ = Vector3(btFabs(aI_.getX()), btFabs(aI_.getY()), btFabs(aI_.getZ()));
 
-    Vector3 Cd(0.5, 0.5, 1.0);
+    Vector3 Cd(1.1, 1.1, 0.9); //Cross-flow and axial flow in subcritical regime
     Cd = T_CG2O_.getBasis().inverse() * T_CG2H_.getBasis() * Cd; // To origin frame
     Cd = Vector3(btFabs(Cd.getX()), btFabs(Cd.getY()), btFabs(Cd.getZ()));
-    SetHydrodynamicCoefficients(Cd, Scalar(0.1)*Cd);
+    SetHydrodynamicCoefficients(Cd, Vector3(-1,-1,-1)); //Skin friction estimated from the Reynolds number
 }
 
 void SolidEntity::ComputeEllipsoidalApprox()
@@ -855,132 +844,177 @@ void SolidEntity::ComputeEllipsoidalApprox()
     for(size_t i=0; i<x.size(); ++i)
         x[i] = T_CG2C_ * x[i] - P_CB_; //Points in CG frame around center of buoyancy
     
-    //P. Kumar, E.A. Yıldırım, Computing Minimum-Volume Enclosing Axis-Aligned Ellipsoids
-    //J Optim Theory Appl (2008) 136: 211–228
-
-    //Initial volume approximation algorithm
-    std::vector<Vector3> x0;
-    for(size_t k=0; k<3; ++k) //3 dimensions
+    //Ellipsoid with the same second moments of volume as the body (volume integrals over the closed mesh)
+    Vector3 c(0,0,0), d(0,0,0);
+    bool fitted = false;
+    const Mesh* mesh = getPhysicsMesh();
+    if(mesh != nullptr)
     {
-        //Construct vector for current dimension
-        std::vector<Scalar> x_k(x.size());
-        for(size_t i=0; i<x.size(); ++i)
-            x_k[i] = x[i].m_floats[k];
-
-        //Find range of values
-        auto result = std::minmax_element(x_k.begin(), x_k.end());
-        
-        //Add limits to the set x0
-        x0.push_back(x[result.first - x_k.begin()]);
-        x0.push_back(x[result.second - x_k.begin()]);
-    }
-
-    //Initial sigma
-    std::vector<Scalar> sigma(x.size());
-    for(size_t i=0; i<x.size(); ++i)
-    {
-        std::vector<Vector3>::iterator it;
-        it = std::find(x0.begin(), x0.end(), x[i]);
-        if(it != x0.end())
-            sigma[i] = Scalar(1)/Scalar(6);
-        else
-            sigma[i] = Scalar(0);
-    }
-    
-    //Utility functions
-    auto u = [](auto j, auto& x, auto& sigma)
-    {
-        auto sum = Scalar(0);
-        for(size_t i=0; i<x.size(); ++i)
-            sum += sigma[i] * x[i].m_floats[j] * x[i].m_floats[j]; 
-        return sum;
-    };
-    
-    auto v = [](auto j, auto& x, auto& sigma)
-    {
-        auto sum = Scalar(0);
-        for(size_t i=0; i<x.size(); ++i)
-            sum += sigma[i] * x[i].m_floats[j]; 
-        return sum;	
-    };
-    
-    auto lambda = [&x, &sigma, &u, &v](int i)
-    {
-        auto sum = Scalar(0);
-        for(int j=0; j<3; ++j)
+        Scalar V6 = Scalar(0); //Six times the volume
+        Vector3 C6(0,0,0); //Volume-weighted centroid (times 24)
+        Vector3 S(0,0,0);  //Second moments of volume (times 120)
+        for(size_t i=0; i<mesh->faces.size(); ++i)
         {
-            auto vj = v(j, x, sigma);
-            auto uj = u(j, x, sigma);
-            sum += (x[i].m_floats[j] - vj)*(x[i].m_floats[j] - vj)/(3*(uj - vj*vj));
+            glm::vec3 p1gl = mesh->getVertexPos(i, 0);
+            glm::vec3 p2gl = mesh->getVertexPos(i, 1);
+            glm::vec3 p3gl = mesh->getVertexPos(i, 2);
+            Vector3 v1 = T_CG2C_ * Vector3(p1gl.x, p1gl.y, p1gl.z) - P_CB_;
+            Vector3 v2 = T_CG2C_ * Vector3(p2gl.x, p2gl.y, p2gl.z) - P_CB_;
+            Vector3 v3 = T_CG2C_ * Vector3(p3gl.x, p3gl.y, p3gl.z) - P_CB_;
+            Scalar tetraV6 = v1.dot(v2.cross(v3));
+            V6 += tetraV6;
+            C6 += (v1 + v2 + v3) * tetraV6;
+            for(int j=0; j<3; ++j)
+                S.m_floats[j] += tetraV6 * Scalar(2) * (v1[j]*v1[j] + v2[j]*v2[j] + v3[j]*v3[j] + v1[j]*v2[j] + v1[j]*v3[j] + v2[j]*v3[j]);
         }
-        return sum;
-    };
-
-    //Initialize i* and epsilon
-    size_t iStar;
-    std::vector<Scalar> I(x.size());
-    for(size_t i=0; i<x.size(); ++i) I[i] = lambda(i);
-    auto IStar = std::max_element(I.begin(), I.end());
-    iStar = IStar - I.begin();
-    Scalar epsilon = lambda(iStar) - Scalar(1);
-
-    //Run optimization
-    Scalar errorTol(0.2);
-    Scalar epsilonTol = btPow(Scalar(1) + errorTol, Scalar(2)/Scalar(3)) - Scalar(1);
-    size_t maxIter = 10;
-
-    size_t k=0;
-#ifdef DEBUG
-    cInfo("%s MVAE iteration %ld --> %lf", getName().c_str(), k, epsilon);
-#endif
-    while(epsilon > epsilonTol && k < maxIter)
-    {
-        x0.push_back(x[iStar]);
         
-        Scalar beta = epsilon/(Scalar(3+1)*(Scalar(1)+epsilon));
+        if(btFabs(V6) > Scalar(1e-12))
+        {
+            Scalar V = V6/Scalar(6);
+            c = C6/(Scalar(4)*V6);
+            S /= Scalar(120);
+            fitted = true;
+            for(int j=0; j<3; ++j)
+            {
+                Scalar Sjj = S[j]/V - c[j]*c[j]; //Per unit volume, about the centroid (sign of V cancels)
+                if(Sjj <= Scalar(0))
+                    fitted = false;
+                else
+                    d.m_floats[j] = btSqrt(Scalar(5) * Sjj); //For an ellipsoid: integral of x^2 dV = V a^2/5
+            }
+        }
+    }
+    
+    if(!fitted) //Mesh not closed -> minimum-volume enclosing ellipsoid
+    {
+        //P. Kumar, E.A. Yıldırım, Computing Minimum-Volume Enclosing Axis-Aligned Ellipsoids
+        //J Optim Theory Appl (2008) 136: 211–228
 
-        //Update sigma
-        for(size_t i=0; i<sigma.size(); ++i)
-            sigma[i] = (Scalar(1)-beta)*sigma[i];
-        sigma[iStar] += beta;
+        //Initial volume approximation algorithm
+        std::vector<Vector3> x0;
+        for(size_t k=0; k<3; ++k) //3 dimensions
+        {
+            //Construct vector for current dimension
+            std::vector<Scalar> x_k(x.size());
+            for(size_t i=0; i<x.size(); ++i)
+                x_k[i] = x[i].m_floats[k];
 
-        //Update i* and epsilon
+            //Find range of values
+            auto result = std::minmax_element(x_k.begin(), x_k.end());
+        
+            //Add limits to the set x0
+            x0.push_back(x[result.first - x_k.begin()]);
+            x0.push_back(x[result.second - x_k.begin()]);
+        }
+
+        //Initial sigma
+        std::vector<Scalar> sigma(x.size());
+        for(size_t i=0; i<x.size(); ++i)
+        {
+            std::vector<Vector3>::iterator it;
+            it = std::find(x0.begin(), x0.end(), x[i]);
+            if(it != x0.end())
+                sigma[i] = Scalar(1)/Scalar(6);
+            else
+                sigma[i] = Scalar(0);
+        }
+    
+        //Utility functions
+        auto u = [](auto j, auto& x, auto& sigma)
+        {
+            auto sum = Scalar(0);
+            for(size_t i=0; i<x.size(); ++i)
+                sum += sigma[i] * x[i].m_floats[j] * x[i].m_floats[j]; 
+            return sum;
+        };
+    
+        auto v = [](auto j, auto& x, auto& sigma)
+        {
+            auto sum = Scalar(0);
+            for(size_t i=0; i<x.size(); ++i)
+                sum += sigma[i] * x[i].m_floats[j]; 
+            return sum;	
+        };
+    
+        auto lambda = [&x, &sigma, &u, &v](int i)
+        {
+            auto sum = Scalar(0);
+            for(int j=0; j<3; ++j)
+            {
+                auto vj = v(j, x, sigma);
+                auto uj = u(j, x, sigma);
+                sum += (x[i].m_floats[j] - vj)*(x[i].m_floats[j] - vj)/(3*(uj - vj*vj));
+            }
+            return sum;
+        };
+
+        //Initialize i* and epsilon
+        size_t iStar;
+        std::vector<Scalar> I(x.size());
         for(size_t i=0; i<x.size(); ++i) I[i] = lambda(i);
-        IStar = std::max_element(I.begin(), I.end());
+        auto IStar = std::max_element(I.begin(), I.end());
         iStar = IStar - I.begin();
-        epsilon = lambda(iStar) - Scalar(1);
+        Scalar epsilon = lambda(iStar) - Scalar(1);
 
-        ++k;
+        //Run optimization
+        Scalar errorTol(0.2);
+        Scalar epsilonTol = btPow(Scalar(1) + errorTol, Scalar(2)/Scalar(3)) - Scalar(1);
+        size_t maxIter = 10;
+
+        size_t k=0;
 #ifdef DEBUG
-        cInfo("%s MVAE iteration %ld --> %lf\n", getName().c_str(), k, epsilon);
+        cInfo("%s MVAE iteration %ld --> %lf", getName().c_str(), k, epsilon);
 #endif
-    }
-    
-    Vector3 c, d;
-    if(k == 0)
-    {
-        c.setX((x0[0].x() + x0[1].x())/Scalar(2)); 
-        c.setY((x0[2].y() + x0[3].y())/Scalar(2)); 
-        c.setZ((x0[4].z() + x0[5].z())/Scalar(2));
-        d.setX(btFabs(x0[0].x()-c.x()));
-        d.setY(btFabs(x0[2].y()-c.y()));
-        d.setZ(btFabs(x0[4].z()-c.z()));
-    }
-    else
-    {
-        c.setX(v(0,x,sigma));
-        c.setY(v(1,x,sigma));
-        c.setZ(v(2,x,sigma));
-        for(int j=0; j<3; ++j)
+        while(epsilon > epsilonTol && k < maxIter)
         {
-            d.m_floats[j] = Scalar(1)/(Scalar(3)*(u(j,x,sigma) - v(j,x,sigma)*v(j,x,sigma)));
-            d.m_floats[j] = Scalar(1)/btSqrt(d.m_floats[j]);
+            x0.push_back(x[iStar]);
+        
+            Scalar beta = epsilon/(Scalar(3+1)*(Scalar(1)+epsilon));
+
+            //Update sigma
+            for(size_t i=0; i<sigma.size(); ++i)
+                sigma[i] = (Scalar(1)-beta)*sigma[i];
+            sigma[iStar] += beta;
+
+            //Update i* and epsilon
+            for(size_t i=0; i<x.size(); ++i) I[i] = lambda(i);
+            IStar = std::max_element(I.begin(), I.end());
+            iStar = IStar - I.begin();
+            epsilon = lambda(iStar) - Scalar(1);
+
+            ++k;
+#ifdef DEBUG
+            cInfo("%s MVAE iteration %ld --> %lf\n", getName().c_str(), k, epsilon);
+#endif
         }
+    
+        if(k == 0)
+        {
+            c.setX((x0[0].x() + x0[1].x())/Scalar(2)); 
+            c.setY((x0[2].y() + x0[3].y())/Scalar(2)); 
+            c.setZ((x0[4].z() + x0[5].z())/Scalar(2));
+            d.setX(btFabs(x0[0].x()-c.x()));
+            d.setY(btFabs(x0[2].y()-c.y()));
+            d.setZ(btFabs(x0[4].z()-c.z()));
+        }
+        else
+        {
+            c.setX(v(0,x,sigma));
+            c.setY(v(1,x,sigma));
+            c.setZ(v(2,x,sigma));
+            for(int j=0; j<3; ++j)
+            {
+                d.m_floats[j] = Scalar(1)/(Scalar(3)*(u(j,x,sigma) - v(j,x,sigma)*v(j,x,sigma)));
+                d.m_floats[j] = Scalar(1)/btSqrt(d.m_floats[j]);
+            }
+        }
+#ifdef DEBUG
+        cInfo("Ellipsoid core points: %d", x0.size());
+#endif
     }
 #ifdef DEBUG
     cInfo("Ellipsoid center: %1.3lf %1.3lf %1.3lf", c.x(), c.y(), c.z());
     cInfo("Ellipsoid axis: %1.3lf %1.3lf %1.3lf", d.x(), d.y(), d.z());
-    cInfo("Ellipsoid core points: %d", x0.size());
 #endif
     
     fdApproxType_ =  GeometryApproxType::ELLIPSOID;
@@ -995,18 +1029,13 @@ void SolidEntity::ComputeEllipsoidalApprox()
     if((ocn = SimulationApp::getApp()->getSimulationManager()->getOcean()) != nullptr)
         rho = ocn->getLiquid().density;
 
-    Scalar r12 = (fdApproxParams_[1] + fdApproxParams_[2])/Scalar(2);
-    aMass_.setX(LambKFactor(fdApproxParams_[0], r12)*Scalar(4)/Scalar(3)*M_PI*rho*fdApproxParams_[0]*r12*r12);
-    aMass_.setY(Scalar(4)/Scalar(3)*M_PI*rho*fdApproxParams_[2]*fdApproxParams_[2]*fdApproxParams_[0]);
-    aMass_.setZ(Scalar(4)/Scalar(3)*M_PI*rho*fdApproxParams_[1]*fdApproxParams_[1]*fdApproxParams_[0]);
-    aI_.setX(0); //THIS SHOULD BE > 0
-    aI_.setY(Scalar(1)/Scalar(12)*M_PI*rho*fdApproxParams_[1]*fdApproxParams_[1]*btPow(fdApproxParams_[0], Scalar(3)));
-    aI_.setZ(Scalar(1)/Scalar(12)*M_PI*rho*fdApproxParams_[2]*fdApproxParams_[2]*btPow(fdApproxParams_[0], Scalar(3)));
+    EllipsoidAddedMass(fdApproxParams_[0], fdApproxParams_[1], fdApproxParams_[2], rho, aMass_, aI_);
+    aMassT_ = Matrix3(aMass_.x(), 0, 0, 0, aMass_.y(), 0, 0, 0, aMass_.z()); //Ellipsoid aligned with CG frame
     
     //Set transform with respect to geometry
     Transform ellipsoidTransform;
     ellipsoidTransform.getBasis().setIdentity(); //Aligned with CG frame (for now)
-    ellipsoidTransform.setOrigin(P_CB_);
+    ellipsoidTransform.setOrigin(P_CB_ + c);
     T_CG2H_ = ellipsoidTransform;
 
     Vector3 Cd(Scalar(1)/fdApproxParams_[0] , Scalar(1)/fdApproxParams_[1], Scalar(1)/fdApproxParams_[2]);
@@ -1014,25 +1043,70 @@ void SolidEntity::ComputeEllipsoidalApprox()
     Cd /= maxCd;
     Cd = T_CG2O_.getBasis().inverse() * Cd; // To origin frame
     Cd = Vector3(btFabs(Cd.getX()), btFabs(Cd.getY()), btFabs(Cd.getZ()));
-    SetHydrodynamicCoefficients(Cd, Scalar(0.1)*Cd);
+    SetHydrodynamicCoefficients(Cd, Vector3(-1,-1,-1)); //Skin friction estimated from the Reynolds number
 
 #ifdef DEBUG
     cInfo("--------------------------------------------------------------------");
 #endif
 }
 
-Scalar SolidEntity::LambKFactor(Scalar r1, Scalar r2)
+//Carlson's symmetric elliptic integral of the second kind R_D(x,y,z), computed with the duplication algorithm
+//(B.C. Carlson, "Numerical computation of real or complex elliptic integrals", Numerical Algorithms 10, 1995)
+static Scalar CarlsonRD(Scalar x, Scalar y, Scalar z)
 {
-    Scalar e = Scalar(1) - r2*r2/r1;
-    Scalar elog = (Scalar(1)+e)/(Scalar(1)-e);
-    
-    if(elog > Scalar(0))
+    const Scalar C1 = Scalar(3)/Scalar(14), C2 = Scalar(1)/Scalar(6), C3 = Scalar(9)/Scalar(22), C4 = Scalar(3)/Scalar(26);
+    const Scalar C5 = Scalar(0.25)*C3, C6 = Scalar(1.5)*C4;
+    Scalar sum = Scalar(0), fac = Scalar(1);
+    Scalar ave(1), delx(0), dely(0), delz(0);
+    for(int i=0; i<100; ++i)
     {
-        Scalar alpha0 = Scalar(2)*(Scalar(1)-e*e)/(e*e) * (Scalar(0.5)*btLog((Scalar(1)+e)/(Scalar(1)-e)) - e);
-        return alpha0/(Scalar(2)-alpha0);
+        Scalar sx = btSqrt(x), sy = btSqrt(y), sz = btSqrt(z);
+        Scalar lambda = sx*(sy + sz) + sy*sz;
+        sum += fac/(sz*(z + lambda));
+        fac *= Scalar(0.25);
+        x = Scalar(0.25)*(x + lambda);
+        y = Scalar(0.25)*(y + lambda);
+        z = Scalar(0.25)*(z + lambda);
+        ave = Scalar(0.2)*(x + y + Scalar(3)*z);
+        delx = (ave - x)/ave;
+        dely = (ave - y)/ave;
+        delz = (ave - z)/ave;
+        if(btMax(btMax(btFabs(delx), btFabs(dely)), btFabs(delz)) < Scalar(0.0015))
+            break;
     }
-    else 
-        return Scalar(1);
+    Scalar ea = delx*dely, eb = delz*delz, ec = ea - eb, ed = ea - Scalar(6)*eb, ee = ed + ec + ec;
+    return Scalar(3)*sum + fac*(Scalar(1) + ed*(-C1 + C5*ed - C6*delz*ee) + delz*(C2*ee + delz*(-C3*ec + delz*C4*ea)))/(ave*btSqrt(ave));
+}
+
+void SolidEntity::EllipsoidLambCoefficients(Scalar a, Scalar b, Scalar c, Scalar& alpha0, Scalar& beta0, Scalar& gamma0)
+{
+    //alpha0 = abc * int_0^inf dl/((a^2+l) sqrt((a^2+l)(b^2+l)(c^2+l))) = 2/3 abc R_D(b^2,c^2,a^2), beta0 and gamma0 analogous
+    //(H. Lamb, Hydrodynamics, 1932, Sec. 114)
+    Scalar k = Scalar(2)/Scalar(3)*a*b*c;
+    alpha0 = k * CarlsonRD(b*b, c*c, a*a);
+    beta0 = k * CarlsonRD(c*c, a*a, b*b);
+    gamma0 = k * CarlsonRD(a*a, b*b, c*c);
+}
+
+void SolidEntity::EllipsoidAddedMass(Scalar a, Scalar b, Scalar c, Scalar rho, Vector3& addedMass, Vector3& addedInertia)
+{
+    //Added mass and added moments of inertia of an ellipsoid with semi-axes a, b, c along x, y, z, in unbounded ideal fluid
+    //(H. Lamb, Hydrodynamics, 1932, Sec. 373; A.I. Korotkin, Added Masses of Ship Structures, 2009)
+    Scalar alpha0, beta0, gamma0;
+    EllipsoidLambCoefficients(a, b, c, alpha0, beta0, gamma0);
+    Scalar md = Scalar(4)/Scalar(3)*M_PI*rho*a*b*c; //Displaced mass
+    addedMass = Vector3(alpha0/(Scalar(2)-alpha0), beta0/(Scalar(2)-beta0), gamma0/(Scalar(2)-gamma0)) * md;
+
+    //Rotation about an axis, with (p,q) the two other semi-axes and (P,Q) the corresponding coefficients
+    auto rotational = [md](Scalar p, Scalar q, Scalar P, Scalar Q)
+    {
+        Scalar p2 = p*p, q2 = q*q;
+        Scalar dpq = p2 - q2;
+        if(btFabs(dpq) < Scalar(1e-6)*(p2 + q2)) //Body of revolution around this axis
+            return Scalar(0);
+        return md/Scalar(5) * dpq*dpq * (Q - P)/(Scalar(2)*dpq + (p2 + q2)*(P - Q));
+    };
+    addedInertia = Vector3(rotational(b, c, beta0, gamma0), rotational(c, a, gamma0, alpha0), rotational(a, b, alpha0, beta0));
 }
 
 void SolidEntity::BuildGraphicalObject()
@@ -1259,30 +1333,70 @@ BodyFluidPosition SolidEntity::CheckBodyFluidPosition(Ocean* ocn)
         return BodyFluidPosition::CROSSING_SURFACE;
 }
 
+Scalar SolidEntity::SkinFrictionCoefficient(Ocean* ocn, Scalar speed, Scalar length)
+{
+    //Reynolds number of the flow along the body
+    Fluid liquid = ocn->getLiquid();
+    Scalar nu = liquid.density > Scalar(0) && liquid.viscosity > Scalar(0) ? liquid.viscosity/liquid.density : Scalar(1e-6); //Kinematic viscosity [m^2/s]
+    Scalar Re = btMax(speed * length / nu, Scalar(1e4)); //Below the limit the friction forces are negligible
+    
+    //Friction coefficient of a turbulent boundary layer (ITTC-1957 model-ship correlation line)
+    Scalar logRe = btLog(Re)/btLog(Scalar(10));
+    return Scalar(0.075)/((logRe - Scalar(2)) * (logRe - Scalar(2)));
+}
+
+Scalar SolidEntity::getShellBuoyancyRatio() const
+{
+    //Shell bodies are considered flooded (only the wall displaces liquid), consistently with the fully submerged case.
+    //Buoyancy of a partially submerged body is computed by integrating over the outer surface, so it has to be scaled.
+    if(thick_ <= Scalar(0) || phyMesh_ == nullptr)
+        return Scalar(1);
+    
+    Scalar V6 = Scalar(0);
+    for(size_t i=0; i<phyMesh_->faces.size(); ++i)
+    {
+        glm::vec3 v1 = phyMesh_->getVertexPos(i, 0);
+        glm::vec3 v2 = phyMesh_->getVertexPos(i, 1);
+        glm::vec3 v3 = phyMesh_->getVertexPos(i, 2);
+        V6 += (Scalar)glm::dot(v1, glm::cross(v2, v3));
+    }
+    Scalar enclosedVolume = btFabs(V6)/Scalar(6);
+    return enclosedVolume > volume_ ? volume_/enclosedVolume : Scalar(1);
+}
+
+Scalar SolidEntity::getCharacteristicLength() const
+{
+    return btSqrt(surface_/Scalar(M_PI)); //Diameter of a sphere with the same surface area
+}
+
+//Weight of an anisotropic coefficient in a given direction (squared components of a unit vector sum to one)
+static inline Scalar DirectionalCoefficient(const Vector3& dir, const Vector3& coeff)
+{
+    return dir.getX() * dir.getX() * coeff.getX() + dir.getY() * dir.getY() * coeff.getY() + dir.getZ() * dir.getZ() * coeff.getZ();
+}
+
 void SolidEntity::CorrectHydrodynamicForces(Ocean* ocn, Vector3& _Fdq, Vector3& _Tdq, Vector3& _Fdf, Vector3& _Tdf, 
-    const Vector3& fdCd, const Vector3& fdCf, const Transform& T_O)
+    const Vector3& fdCd, const Vector3& fdCf, const Transform& T_O, Scalar Cf0)
 {
     Matrix3 toOrigin = T_O.getBasis().inverse();
+    Scalar rho = ocn->getLiquid().density;
 
-    Vector3 Fdq = toOrigin * _Fdq;
-    Fdq = Fdq.safeNormalize();
-    Scalar Fdqc = btFabs(Fdq.getX()) * fdCd.getX() + btFabs(Fdq.getY()) * fdCd.getY() + btFabs(Fdq.getZ()) * fdCd.getZ();
-    _Fdq = Scalar(0.5) * ocn->getLiquid().density * Fdqc * _Fdq; //0.5*rho*Cd*S*v2 from drag equation    
+    //Skin friction coefficients not defined by the user (negative) are estimated for turbulent flow
+    Vector3 Cf(fdCf.getX() < Scalar(0) ? Cf0 : fdCf.getX(),
+               fdCf.getY() < Scalar(0) ? Cf0 : fdCf.getY(),
+               fdCf.getZ() < Scalar(0) ? Cf0 : fdCf.getZ());
 
-    Vector3 Tdq = toOrigin * _Tdq;
-    Tdq = Tdq.safeNormalize();
-    Scalar Tdqc = btFabs(Tdq.getX()) * fdCd.getX() + btFabs(Tdq.getY()) * fdCd.getY() + btFabs(Tdq.getZ()) * fdCd.getZ();
-    _Tdq = Scalar(0.5) * ocn->getLiquid().density * Tdqc * _Tdq; //0.5*rho*Cd*S*v2 from drag equation
+    Vector3 Fdq = (toOrigin * _Fdq).safeNormalize();
+    _Fdq = Scalar(0.5) * rho * DirectionalCoefficient(Fdq, fdCd) * _Fdq; //0.5*rho*Cd*S*v^2 from drag equation    
 
-    Vector3 Fdf = toOrigin * _Fdf;
-    Fdf = Fdf.safeNormalize();
-    Scalar Fdfc = btFabs(Fdf.getX()) * fdCf.getX() + btFabs(Fdf.getY()) * fdCf.getY() + btFabs(Fdf.getZ()) * fdCf.getZ(); 
-    _Fdf = ocn->getLiquid().density * Fdfc * _Fdf; //rho*Cf*S*v from viscous drag equation
+    Vector3 Tdq = (toOrigin * _Tdq).safeNormalize();
+    _Tdq = Scalar(0.5) * rho * DirectionalCoefficient(Tdq, fdCd) * _Tdq; //0.5*rho*Cd*S*v^2 from drag equation
+
+    Vector3 Fdf = (toOrigin * _Fdf).safeNormalize();
+    _Fdf = Scalar(0.5) * rho * DirectionalCoefficient(Fdf, Cf) * _Fdf; //0.5*rho*Cf*S*v^2 from skin friction equation
     
-    Vector3 Tdf = toOrigin * _Tdf;
-    Tdf = Tdf.safeNormalize();
-    Scalar Tdfc = btFabs(Tdf.getX()) * fdCf.getX() + btFabs(Tdf.getY()) * fdCf.getY() + btFabs(Tdf.getZ()) * fdCf.getZ();
-    _Tdf = ocn->getLiquid().density * Tdfc * _Tdf; //rho*S*v from viscous drag equation
+    Vector3 Tdf = (toOrigin * _Tdf).safeNormalize();
+    _Tdf = Scalar(0.5) * rho * DirectionalCoefficient(Tdf, Cf) * _Tdf; //0.5*rho*Cf*S*v^2 from skin friction equation
 }
 
 void SolidEntity::ComputeHydrodynamicForcesSurface(const HydrodynamicsSettings& settings, const Mesh* mesh, Ocean* ocn, const Transform& T_CG, const Transform& T_C,
@@ -1310,6 +1424,16 @@ void SolidEntity::ComputeHydrodynamicForcesSurface(const HydrodynamicsSettings& 
         return;
     }
 
+    //Clear outputs (some of them are only written when the body is submerged or when a computation is enabled)
+    _Fb.setZero();
+    _Tb.setZero();
+    _Fdq.setZero();
+    _Tdq.setZero();
+    _Fdf.setZero();
+    _Tdf.setZero();
+    _Swet = Scalar(0);
+    _Vsub = Scalar(0);
+    
     auto debugPoints = debug.getDataAsPoints();
 
     //Computation with floats (geometry has float precision)
@@ -1670,8 +1794,8 @@ void SolidEntity::ComputeHydrodynamicForcesSurface(const HydrodynamicsSettings& 
             
             if(vc_n < -1e-12f) //If liquid is approaching the surface
             {
-                GLfloat vmag2 = glm::length2(vc);
-                glm::vec3 quadratic = vc * sqrtf(vmag2) * -vc_n * A;
+                //Pressure drag acts along the flow, on the face area projected onto the flow direction (|v|^2 * A * cos(theta))
+                glm::vec3 quadratic = vc * -vc_n * A;
                 Fdq += quadratic;
                 Tdq += glm::cross(fc - p, quadratic);
             }
@@ -1679,7 +1803,8 @@ void SolidEntity::ComputeHydrodynamicForcesSurface(const HydrodynamicsSettings& 
             GLfloat vmag2 = glm::length2(vt);
             if(vmag2 > 1e-9f)
             {
-                glm::vec3 skin = vt * A;
+                //Skin friction of a turbulent boundary layer (|vt| * vt * A)
+                glm::vec3 skin = vt * sqrtf(vmag2) * A;
                 Fdf += skin;
                 Tdf += glm::cross(fc - p, skin);
             }
@@ -1689,11 +1814,13 @@ void SolidEntity::ComputeHydrodynamicForcesSurface(const HydrodynamicsSettings& 
         Swet += A;
     }
 
+    //Submerged volume
+    if(Vsub > 1e-9f)
+        _Vsub = Vsub/6.f;
+
     //Buoyancy
     if(settings.reallisticBuoyancy && Vsub > 1e-9f)
     {
-        _Vsub = Vsub/6.f;
-        
         if(ocn->hasWaves())
         {
             Fb *= ocn->getLiquid().density * SimulationApp::getApp()->getSimulationManager()->getGravity().getZ();
@@ -1782,8 +1909,8 @@ void SolidEntity::ComputeHydrodynamicForcesSubmerged(const Mesh* mesh, Ocean* oc
         
         if(vc_n < -1e-12f) //If liquid is approaching the surface
         {
-            GLfloat vmag2 = glm::length2(vc);
-            glm::vec3 quadratic = vc * sqrtf(vmag2) * -vc_n * A;
+            //Pressure drag acts along the flow, on the face area projected onto the flow direction (|v|^2 * A * cos(theta))
+            glm::vec3 quadratic = vc * -vc_n * A;
             Fdq += quadratic;
             Tdq += glm::cross(fc - p, quadratic);
         }
@@ -1791,7 +1918,8 @@ void SolidEntity::ComputeHydrodynamicForcesSubmerged(const Mesh* mesh, Ocean* oc
         GLfloat vmag2 = glm::length2(vt);
         if(vmag2 > 1e-9f)
         {
-            glm::vec3 skin = vt * A;
+            //Skin friction of a turbulent boundary layer (|vt| * vt * A)
+            glm::vec3 skin = vt * sqrtf(vmag2) * A;
             Fdf += skin;
             Tdf += glm::cross(fc - p, skin);
         }
@@ -1845,15 +1973,23 @@ void SolidEntity::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocea
             ComputeHydrodynamicForcesSubmerged(getPhysicsMesh(), ocn, getCGTransform(), getCTransform(), v, omega, Fdq_, Tdq_, Fdf_, Tdf_);
 
         Swet_ = surface_;
+        Vsub_ = volume_;
     }
     else //CROSSING_FLUID_SURFACE
     {
         if(!isBuoyant()) settings.reallisticBuoyancy = false;
         ComputeHydrodynamicForcesSurface(settings, getPhysicsMesh(), ocn, getCGTransform(), getCTransform(), v, omega, Fb_, Tb_, Fdq_, Tdq_, Fdf_, Tdf_, Swet_, Vsub_, submerged_);
+        Scalar shellRatio = getShellBuoyancyRatio();
+        Fb_ *= shellRatio;
+        Tb_ *= shellRatio;
+        Vsub_ *= shellRatio;
     }
     
     if(settings.dampingForces)
-        CorrectHydrodynamicForces(ocn, Fdq_, Tdq_, Fdf_, Tdf_, fdCd_, fdCf_, getOTransform());
+    {
+        Scalar speed = (ocn->GetFluidVelocity(getCGTransform().getOrigin()) - v).length();
+        CorrectHydrodynamicForces(ocn, Fdq_, Tdq_, Fdf_, Tdf_, fdCd_, fdCf_, getOTransform(), SkinFrictionCoefficient(ocn, speed, getCharacteristicLength()));
+    }
 }
 
 void SolidEntity::ComputeAerodynamicForces(Atmosphere* atm)
@@ -1947,7 +2083,7 @@ void SolidEntity::CorrectAerodynamicForces(Atmosphere* atm, Vector3& _Fda, Vecto
                 
         case  GeometryApproxType::CYLINDER:
         {
-            Vector3 Cd(0.5, 0.5, 1.0);
+            Vector3 Cd(1.1, 1.1, 0.9);
             corFactor = Cd.dot(Fdan);
         }
             break;
@@ -1970,6 +2106,44 @@ void SolidEntity::ApplyHydrodynamicForces()
 {
     ApplyCentralForce(Fb_ + Fdq_ + Fdf_);
     ApplyTorque(Tb_ + Tdq_ + Tdf_);
+}
+
+void SolidEntity::ApplyAddedMassCorrection(Ocean* ocn)
+{
+    //The physics engine supports only a scalar mass, so the body is simulated with the mean augmented mass.
+    //The accumulated external force is corrected, in the body frame, so that the translational motion follows
+    //the anisotropic added mass, including the added mass Coriolis force and the Munk moment
+    //(T.I. Fossen, Handbook of Marine Craft Hydrodynamics and Motion Control, 2011, Sec. 6.3).
+    if(phy_.mode != PhysicsMode::SUBMERGED || ocn == nullptr || volume_ <= Scalar(0))
+        return;
+    if(rigidBody_ == nullptr && (multibodyCollider_ == nullptr || multibodyCollider_->m_link >= 0)) //Only free bodies and bases of multibodies
+        return;
+    
+    Scalar f = btClamped(Vsub_/volume_, Scalar(0), Scalar(1)); //Added mass depends on the submerged part of the body
+    Matrix3 A = aMassT_.scaled(Vector3(f, f, f));
+    Scalar Mb = getAugmentedMass();
+    Matrix3 Meff = A + Matrix3(mass_, 0, 0, 0, mass_, 0, 0, 0, mass_);
+    
+    //Velocities in the body (CG) frame
+    Transform T_CG = getCGTransform();
+    Matrix3 Rt = T_CG.getBasis().transpose();
+    Vector3 v = Rt * getLinearVelocity();
+    Vector3 omega = Rt * getAngularVelocity();
+    Vector3 vr = Rt * (getLinearVelocity() - ocn->GetFluidVelocity(T_CG.getOrigin())); //Relative to liquid
+    Vector3 Avr = A * vr;
+    
+    //Force accumulated so far (all external forces)
+    Vector3 F = Rt * getAppliedForce();
+    
+    //Desired: Meff dv/dt = F - omega x (m v + A vr); engine: Mb (dv/dt + omega x v) = F'
+    Vector3 Fc = F - omega.cross(v * mass_ + Avr);
+    Vector3 Fcorr = (Meff.inverse() * Fc + omega.cross(v)) * Mb;
+    
+    //Munk moment (destabilizing moment of added mass)
+    Vector3 Tmunk = Avr.cross(vr);
+    
+    ApplyCentralForce(T_CG.getBasis() * (Fcorr - F));
+    ApplyTorque(T_CG.getBasis() * Tmunk);
 }
 
 void SolidEntity::ApplyAerodynamicForces()

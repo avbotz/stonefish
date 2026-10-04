@@ -24,6 +24,39 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - *Moved force/thrust limits of the push and simple thruster actuators to a* ``limits`` *element, defined as absolute values for each direction*
 - *Renamed XML attributes:* ``minimum_layer_size`` → ``minimum_layer_thickness`` (DVL), ``thrust_coeff_backward`` → ``thrust_coeff_reverse`` (propeller)
 - *Per-axis sensor attributes have to be defined as three values in XML*
+- Added reduction of thruster force close to the water surface (partial immersion and ventilation of the propeller)
+- Added optional reaction torque (``torque_ratio``) to the quadratic, deadband and linear interpolation thrust models, including parser support
+- Added optional motor torque limit (``max_torque``) to the mechanical PI rotor dynamics model, including parser support
+- *Fixed thrust of left-hand propellers for the quadratic, deadband and linear interpolation thrust models (forward and reverse characteristics were swapped)*
+- *Fixed numerical instability of the first order, Yoerger, Bessa and mechanical PI rotor dynamics models for large time steps*
+- Fixed limiting of the propeller angular velocity for the rotor dynamics models with torque or voltage input
+- Fixed handling of unsorted and repeated data points in the linear interpolation thrust model
+- Fixed crashes of the rudder and the fluid dynamics thrust model parser when the ocean is not enabled, and uninitialized setpoints of the simple thruster
+- *Fixed joints between rigid bodies behaving like undamped springs (joint velocity correction of the solver was disabled); the global damping of bodies is now a separate setting (``SimulationManager::setBodyDamping()``)*
+- Fixed spinning friction torque at contacts, which was computed from the sum instead of the difference of the body spins
+- Fixed contact slip velocity computed for rotated bodies (friction model)
+- Fixed real-time simulation freezing when the system clock went backwards or the realtime factor was changed
+- Limited the amount of simulation time advanced in one real-time update, to avoid a spiral of death when physics cannot keep up
+- Fixed crash on exit caused by detached threads of the physics thread pool, and by OpenGL resources released after the graphics context was destroyed
+- Fixed friction coefficients used for undefined material pairs
+- Fixed inertia of meshes with wall thickness (shells) and made the computation of principal axes of inertia robust
+- Reimplemented hydrodynamic drag of cables (Morison equation) and fixed excess buoyancy of cable end nodes
+- *Fixed form drag growing with the cube of velocity instead of the square*
+- *Reimplemented skin friction as turbulent friction with the coefficient estimated from the Reynolds number (ITTC-1957), unless defined by the user*
+- *Fixed weighting of directional drag coefficients (drag was overestimated for oblique flow)*
+- *Reimplemented the added mass: exact potential flow solution for ellipsoids with the same second moments of volume as the body (previously an enclosing ellipsoid and incorrect formulas were used, overestimating the added mass many times), and anisotropic added mass including the Munk moment*
+- Added an option to override the added mass and the added inertia of bodies (``added_mass``, ``added_inertia``), including compound bodies, with parser support
+- Fixed buoyancy of compound body parts crossing the surface (stale values of other parts) and of shell bodies at the surface
+- Fixed velocities of links of branched robots (Featherstone), used to compute their hydrodynamic forces
+- Fixed transforms of free rigid bodies lagging behind their velocities (interpolated motion state)
+- Fixed aerodynamic drag (linear instead of quadratic)
+- Water viscosity computed from the water temperature
+- *Fixed lighting: inverse square law of point and spot lights, sun light applied with a double cosine factor and sky light too strong compared to the sun*
+- *Fixed tone mapping (filmic curve applied to the gamma-corrected image)*
+- Sun light under water is refracted and attenuated according to Fresnel equations, including the direction of the cast shadows
+- Implemented capillary ripples on the water surface and caustics under water, with parser support (``ripples``)
+- Implemented the view of the water surface from below: Snell's window, total internal reflection and the mirror image of the underwater scene
+- Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)
 
 1.5
 ===

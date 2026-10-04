@@ -164,17 +164,40 @@ namespace sf
         }
     };
     
+    //! A structure providing vertex position lookup without virtual dispatch.
+    /*!
+     Obtained once per mesh and used in the geometry loops of the fluid dynamics
+     computations, where calling the virtual GetVertexPos() three times per face
+     prevents inlining and vectorization of the whole loop body.
+     */
+    struct VertexPosAccessor
+    {
+        const uint8_t* data; //Vertex positions are the first member of every vertex type
+        size_t stride;
+
+        const glm::vec3& operator()(const Face& face, unsigned short index) const
+        {
+            return *reinterpret_cast<const glm::vec3*>(data + (size_t)face.vertexID[index] * stride);
+        }
+    };
+
     //! A structure containing mesh data.
     struct Mesh
     {
         std::vector<Face> faces;
 
-        void* GetFaceDataPointer() const 
+        void* GetFaceDataPointer() const
         {
             return (void*)&faces[0].vertexID[0];
         }
 
-        virtual ~Mesh() {}    
+        //! A method returning an accessor allowing for fast vertex position lookup.
+        VertexPosAccessor getVertexPosAccessor() const
+        {
+            return VertexPosAccessor{(const uint8_t*)GetVertexDataPointer(), GetVertexSize()};
+        }
+
+        virtual ~Mesh() {}
         virtual bool IsTexturable() const = 0;
         virtual size_t GetNumOfVertices() const = 0;
         virtual void* GetVertexDataPointer() const = 0;

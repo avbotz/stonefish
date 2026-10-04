@@ -69,7 +69,15 @@ namespace sf
                         }
                         
                         // Execute the task
-                        task(); 
+                        // A throwing task must neither kill the worker nor skip the
+                        // counter update below, which would block WaitAll() forever.
+                        try
+                        {
+                            task();
+                        }
+                        catch(...)
+                        {
+                        }
 
                         // Decrement the task counter and notify if we are completely done
                         if (--activeTasks_ == 0) 
@@ -108,6 +116,35 @@ namespace sf
             }
             condition_.notify_one();
             return res;
+        }
+
+        //! A method used to add a task to the queue, when its result is not needed.
+        /*!
+         Contrary to Enqueue(), no packaged task, shared state or future is allocated,
+         which matters when tasks are dispatched from a hot loop. Use WaitAll() to synchronise.
+         */
+        template <class F>
+        void post(F &&f)
+        {
+            {
+                std::unique_lock<std::mutex> lock(queueMutex_);
+                if (stop_)
+                {
+                    throw std::runtime_error("Post on stopped ThreadPool");
+                }
+
+                // Increment BEFORE pushing to avoid a race condition where
+                // is_idle() returns true before the worker thread can even register the task.
+                activeTasks_++;
+                tasks_.emplace(std::forward<F>(f));
+            }
+            condition_.notify_one();
+        }
+
+        //! A method returning the number of worker threads in the pool.
+        size_t getNumThreads() const
+        {
+            return workers_.size();
         }
 
         //! A non-blocking method that returns true if no tasks are queued or running.

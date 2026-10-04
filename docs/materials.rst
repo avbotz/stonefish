@@ -37,6 +37,12 @@ The same can be achieved using the following code:
     SetMaterialsInteraction("Steel", "Steel", sf::Scalar(0.4), sf::Scalar(0.1));
     SetMaterialsInteraction("Aluminium", "Steel", sf::Scalar(0.8), sf::Scalar(0.5));    
 
+The restitution of a contact is the product of the restitution factors of the two materials. The friction coefficient changes smoothly from the static to the dynamic value with increasing slip velocity. Material pairs not listed in the friction table use static and dynamic friction coefficients equal to 1.0.
+
+.. note::
+
+    The values used in the example above are typical for dry contacts in air. In water, collisions are strongly damped by the surrounding fluid and the contact surfaces are wet. For realistic simulation of underwater robots it is recommended to use restitution factors in the range 0.0-0.3 for most materials, and to define the friction table explicitly, with typical coefficients in the range 0.2-0.6 (the dynamic coefficient should not exceed the static one).
+
 Looks
 =====
 

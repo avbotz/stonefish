@@ -1333,12 +1333,16 @@ void SolidEntity::ComputeHydrodynamicForcesSurface(const HydrodynamicsSettings& 
     p0.z = 0.f;       //When the robot is far from the world origin numerical erros would explode without translating the mesh data!
     
     //Loop through all faces...
-    for(size_t i=0; i<mesh->faces.size(); ++i)
+    const VertexPosAccessor vertexPos = mesh->getVertexPosAccessor();
+    const size_t numFaces = mesh->faces.size();
+
+    for(size_t i=0; i<numFaces; ++i)
     {
         //Global coordinates
-        glm::vec3 p1gl = mesh->getVertexPos(i, 0);
-        glm::vec3 p2gl = mesh->getVertexPos(i, 1);
-        glm::vec3 p3gl = mesh->getVertexPos(i, 2);
+        const Face& face = mesh->faces[i];
+        const glm::vec3& p1gl = vertexPos(face, 0);
+        const glm::vec3& p2gl = vertexPos(face, 1);
+        const glm::vec3& p3gl = vertexPos(face, 2);
         glm::vec3 p1 = glm::vec3(TC * glm::vec4(p1gl, 1.f));
         glm::vec3 p2 = glm::vec3(TC * glm::vec4(p2gl, 1.f));
         glm::vec3 p3 = glm::vec3(TC * glm::vec4(p3gl, 1.f));
@@ -1745,12 +1749,16 @@ void SolidEntity::ComputeHydrodynamicForcesSubmerged(const Mesh* mesh, Ocean* oc
     glm::vec3 p = glm::vec3(TCG[3]);
 
     //Loop through all faces...
-    for(size_t i=0; i<mesh->faces.size(); ++i)
+    const VertexPosAccessor vertexPos = mesh->getVertexPosAccessor();
+    const size_t numFaces = mesh->faces.size();
+
+    for(size_t i=0; i<numFaces; ++i)
     {
         //Global coordinates
-        glm::vec3 p1gl = mesh->getVertexPos(i, 0);
-        glm::vec3 p2gl = mesh->getVertexPos(i, 1);
-        glm::vec3 p3gl = mesh->getVertexPos(i, 2);
+        const Face& face = mesh->faces[i];
+        const glm::vec3& p1gl = vertexPos(face, 0);
+        const glm::vec3& p2gl = vertexPos(face, 1);
+        const glm::vec3& p3gl = vertexPos(face, 2);
         glm::vec3 p1 = glm::vec3(TC * glm::vec4(p1gl, 1.f));
         glm::vec3 p2 = glm::vec3(TC * glm::vec4(p2gl, 1.f));
         glm::vec3 p3 = glm::vec3(TC * glm::vec4(p3gl, 1.f));
@@ -1882,12 +1890,16 @@ void SolidEntity::ComputeAerodynamicForces(const Mesh* mesh, Atmosphere* atm, co
     glm::vec3 p = glm::vec3(TCG[3]);
 
     //Loop through all faces...
-    for(size_t i=0; i<mesh->faces.size(); ++i)
+    const VertexPosAccessor vertexPos = mesh->getVertexPosAccessor();
+    const size_t numFaces = mesh->faces.size();
+
+    for(size_t i=0; i<numFaces; ++i)
     {
         //Global coordinates
-        glm::vec3 p1gl = mesh->getVertexPos(i, 0);
-        glm::vec3 p2gl = mesh->getVertexPos(i, 1);
-        glm::vec3 p3gl = mesh->getVertexPos(i, 2);
+        const Face& face = mesh->faces[i];
+        const glm::vec3& p1gl = vertexPos(face, 0);
+        const glm::vec3& p2gl = vertexPos(face, 1);
+        const glm::vec3& p3gl = vertexPos(face, 2);
         glm::vec3 p1 = glm::vec3(TC * glm::vec4(p1gl, 1.f));
         glm::vec3 p2 = glm::vec3(TC * glm::vec4(p2gl, 1.f));
         glm::vec3 p3 = glm::vec3(TC * glm::vec4(p3gl, 1.f));

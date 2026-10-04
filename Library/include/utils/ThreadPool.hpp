@@ -69,7 +69,15 @@ namespace sf
                         }
                         
                         // Execute the task
-                        task(); 
+                        // A throwing task must neither kill the worker nor skip the
+                        // counter update below, which would block waitAll() forever.
+                        try
+                        {
+                            task();
+                        }
+                        catch(...)
+                        {
+                        }
 
                         // Decrement the task counter and notify if we are completely done
                         if (--activeTasks_ == 0) 
@@ -110,6 +118,35 @@ namespace sf
             return res;
         }
 
+        //! A method used to add a task to the queue, when its result is not needed.
+        /*!
+         Contrary to enqueue(), no packaged task, shared state or future is allocated,
+         which matters when tasks are dispatched from a hot loop. Use waitAll() to synchronise.
+         */
+        template <class F>
+        void post(F &&f)
+        {
+            {
+                std::unique_lock<std::mutex> lock(queueMutex_);
+                if (stop_)
+                {
+                    throw std::runtime_error("Post on stopped ThreadPool");
+                }
+
+                // Increment BEFORE pushing to avoid a race condition where
+                // is_idle() returns true before the worker thread can even register the task.
+                activeTasks_++;
+                tasks_.emplace(std::forward<F>(f));
+            }
+            condition_.notify_one();
+        }
+
+        //! A method returning the number of worker threads in the pool.
+        size_t getNumThreads() const
+        {
+            return workers_.size();
+        }
+
         //! A non-blocking method that returns true if no tasks are queued or running.
         bool isIdle() const
         {
@@ -125,14 +162,20 @@ namespace sf
 
         ~ThreadPool()
         {
-            std::unique_lock<std::mutex> lock(queueMutex_);
-            stop_ = true;
-            
+            {
+                std::unique_lock<std::mutex> lock(queueMutex_);
+                stop_ = true;
+            }
+
+            // Notified with the lock released, so that the workers can proceed immediately.
             condition_.notify_all();
+
+            // The workers must be joined, never detached: they access members of this
+            // object and would read freed memory if they outlived it.
             for (std::thread &worker : workers_)
             {
                 if (worker.joinable())
-                    worker.detach();
+                    worker.join();
             }
         }
 

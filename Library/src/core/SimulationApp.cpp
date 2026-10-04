@@ -44,8 +44,9 @@ SimulationApp::SimulationApp(const std::string& title, const std::string& dataDi
     else
         cInfo("Welcome to Stonefish %d.%d.", STONEFISH_VER_MAJOR, STONEFISH_VER_MINOR);
 
-    //Get available threads
-    setMaxPhysicsThreads(GetPhysicalCores());
+    //Get available threads, leaving one core for the rendering thread and the OS
+    unsigned int cores = GetPhysicalCores();
+    setMaxPhysicsThreads(cores > 1 ? cores - 1 : 1);
 }
 
 SimulationApp::~SimulationApp()
@@ -144,26 +145,25 @@ void SimulationApp::Loop()
         LoopInternal();
 }
 
+void SimulationApp::CreatePhysicsThreadPool()
+{
+    if (physicsThreadPool_ != nullptr || getMaxPhysicsThreads() < 2) // Already running or not needed
+        return;
+
+    physicsThreadPool_ = std::make_unique<ThreadPool>(getMaxPhysicsThreads()); // Prepare threads for running physics
+    cInfo("Multithreading physics using %d threads.", getMaxPhysicsThreads());
+}
+
 void SimulationApp::StartSimulation()
 {
-    if (getMaxPhysicsThreads() > 1)
-    {
-        physicsThreadPool_ = std::make_unique<ThreadPool>(getMaxPhysicsThreads()); // Prepare threads for running physics
-        cInfo("Multithreading physics using %d threads.", getMaxPhysicsThreads());
-    }
-    
+    CreatePhysicsThreadPool();
     simManager_->StartSimulation();
     state_ = SimulationState::RUNNING;
 }
 
 void SimulationApp::ResumeSimulation()
 {
-    if (getMaxPhysicsThreads() > 1)
-    {
-        physicsThreadPool_ = std::make_unique<ThreadPool>(getMaxPhysicsThreads()); // Prepare threads for running physics
-        cInfo("Multithreading physics using %d threads.", getMaxPhysicsThreads());
-    }
-
+    CreatePhysicsThreadPool();
     simManager_->ResumeSimulation();
     state_ = SimulationState::RUNNING;
 }

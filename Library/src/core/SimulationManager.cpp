@@ -341,13 +341,23 @@ Actuator* SimulationManager::AddActuator(std::unique_ptr<Actuator, ActuatorDelet
         return nullptr;
 }
 
+//Entities are stored in a fixed order, so that a contact is found regardless of the argument order
+static inline std::pair<const Entity*, const Entity*> ContactKey(const Entity* entA, const Entity* entB)
+{
+    return entA < entB ? std::make_pair(entA, entB) : std::make_pair(entB, entA);
+}
+
 Contact* SimulationManager::AddContact(std::unique_ptr<Contact> cnt)
 {
     if(cnt != nullptr)
     {
+        Contact* c = cnt.get();
         contacts_.push_back(std::move(cnt));
-        EnableCollision(cnt->getEntityA(), cnt->getEntityB());
-        return contacts_.back().get();
+        //insert(), not operator[], so that the first contact defined for a pair of entities
+        //keeps being returned, as it was with the linear search this replaced
+        contactLookup_.insert({ContactKey(c->getEntityA(), c->getEntityB()), c});
+        EnableCollision(c->getEntityA(), c->getEntityB());
+        return c;
     }
     else
         return nullptr;
@@ -402,21 +412,8 @@ void SimulationManager::DisableCollision(const Entity* entA, const Entity* entB)
 
 Contact* SimulationManager::getContact(Entity* entA, Entity* entB)
 {
-    for(size_t i = 0; i < contacts_.size(); ++i)
-    {
-        if(contacts_[i]->getEntityA() == entA)
-        {
-            if(contacts_[i]->getEntityB() == entB)
-                return contacts_[i].get();
-        }
-        else if(contacts_[i]->getEntityB() == entA)
-        {
-            if(contacts_[i]->getEntityA() == entB)
-                return contacts_[i].get();
-        }
-    }
-    
-    return nullptr;
+    auto it = contactLookup_.find(ContactKey(entA, entB));
+    return it != contactLookup_.end() ? it->second : nullptr;
 }
 
 Contact* SimulationManager::getContact(unsigned int index)
@@ -946,6 +943,7 @@ void SimulationManager::DestroyScenario()
     entities_.clear();
     joints_.clear();
     contacts_.clear();
+    contactLookup_.clear();
     sensors_.clear();
     comms_.clear();
     actuators_.clear();
@@ -1503,6 +1501,71 @@ void SimulationManager::SolveICTickCallback(btDynamicsWorld* world, Scalar timeS
     simManager->simulationTime_ += timeStep;
 }
 
+//Used to collect the bodies overlapping a forcefield ghost object.
+//The bodies for which ApplyFluidForces() would return immediately are dropped here, so that
+//they do not take up a slot in the parallel dispatch below.
+static void CollectFluidBodies(btDynamicsWorld* world, btPairCachingGhostObject* ghost, std::vector<btCollisionObject*>& bodies)
+{
+    btBroadphasePairArray& pairArray = ghost->getOverlappingPairCache()->getOverlappingPairArray();
+    int numPairs = pairArray.size();
+
+    bodies.clear();
+    bodies.reserve((size_t)numPairs);
+
+    for(int h=0; h<numPairs; ++h)
+    {
+        const btBroadphasePair& pair = pairArray[h];
+        btBroadphasePair* colPair = world->getPairCache()->findPair(pair.m_pProxy0, pair.m_pProxy1);
+        if(!colPair)
+            continue;
+
+        btCollisionObject* candidate1 = (btCollisionObject*)colPair->m_pProxy0->m_clientObject;
+        btCollisionObject* candidate2 = (btCollisionObject*)colPair->m_pProxy1->m_clientObject;
+        btCollisionObject* co = candidate1 == ghost ? candidate2 : candidate1;
+
+        //Mirrors the early returns of Ocean/Atmosphere::ApplyFluidForces().
+        //Soft bodies are never flagged static or kinematic, so cables are not affected.
+        if(co == ghost || co->isStaticOrKinematicObject())
+            continue;
+
+        bodies.push_back(co);
+    }
+}
+
+//Used to compute the fluid forces for a list of bodies, split into one task per worker thread.
+//Dispatching one task per body instead makes the queueing cost (allocation, queue lock,
+//condition variable signal) dominate the computation itself, when the bodies are small.
+template <typename Func>
+static void ComputeFluidForcesParallel(ThreadPool* threads, const std::vector<btCollisionObject*>& bodies, Func apply)
+{
+    size_t numBodies = bodies.size();
+    if(numBodies == 0)
+        return;
+
+    if(threads == nullptr || numBodies == 1) //Not worth dispatching
+    {
+        for(size_t i=0; i<numBodies; ++i)
+            apply(bodies[i]);
+        return;
+    }
+
+    size_t numChunks = std::min(threads->getNumThreads(), numBodies);
+    size_t chunkSize = (numBodies + numChunks - 1)/numChunks;
+
+    for(size_t begin = 0; begin < numBodies; begin += chunkSize)
+    {
+        size_t end = std::min(begin + chunkSize, numBodies);
+        //Capturing by reference is safe because waitAll() below blocks until all tasks finished
+        threads->post([&bodies, &apply, begin, end]()
+        {
+            for(size_t i=begin; i<end; ++i)
+                apply(bodies[i]);
+        });
+    }
+
+    threads->waitAll();
+}
+
 //Used to apply and accumulate forces
 void SimulationManager::SimulationTickCallback(btDynamicsWorld* world, Scalar timeStep)
 {
@@ -1578,33 +1641,11 @@ void SimulationManager::SimulationTickCallback(btDynamicsWorld* world, Scalar ti
     //Aerodynamic forces
     if(simManager->atmosphere_ != nullptr)
     {
-        btBroadphasePairArray& pairArray = simManager->atmosphere_->getGhost()->getOverlappingPairCache()->getOverlappingPairArray();
-        int numPairs = pairArray.size();
-        
-        if(numPairs > 0)
+        CollectFluidBodies(world, simManager->atmosphere_->getGhost(), simManager->fluidBodies_);
+        ComputeFluidForcesParallel(threads, simManager->fluidBodies_, [simManager, world, recompute](btCollisionObject* co)
         {
-            for(int h=0; h<numPairs; ++h)
-            {
-                const btBroadphasePair& pair = pairArray[h];
-                btBroadphasePair* colPair = world->getPairCache()->findPair(pair.m_pProxy0, pair.m_pProxy1);
-                if (!colPair)
-                    continue;
-                    
-                btCollisionObject* candidate1 = (btCollisionObject*)colPair->m_pProxy0->m_clientObject;
-                btCollisionObject* candidate2 = (btCollisionObject*)colPair->m_pProxy1->m_clientObject;
-                btCollisionObject* co = candidate1 == simManager->atmosphere_->getGhost() ? candidate2 : candidate1;
-                
-                if (threads != nullptr)
-                    threads->enqueue([](SimulationManager* sim, btDynamicsWorld* world, btCollisionObject* co, bool recompute){
-                        sim->atmosphere_->ApplyFluidForces(world, co, recompute); 
-                    }, simManager, world, co, recompute);
-                else
-                    simManager->atmosphere_->ApplyFluidForces(world, co, recompute);
-            }
-        }
-
-        if (threads != nullptr)
-            threads->waitAll();
+            simManager->atmosphere_->ApplyFluidForces(world, co, recompute);
+        });
     }
     
     //Hydrodynamic forces
@@ -1613,33 +1654,11 @@ void SimulationManager::SimulationTickCallback(btDynamicsWorld* world, Scalar ti
         if(recompute) SDL_LockMutex(simManager->simHydroMutex_);
         simManager->perfMon_.HydrodynamicsStarted();
         
-        btBroadphasePairArray& pairArray = simManager->ocean_->getGhost()->getOverlappingPairCache()->getOverlappingPairArray();
-        int numPairs = pairArray.size();
-        
-        if(numPairs > 0)
+        CollectFluidBodies(world, simManager->ocean_->getGhost(), simManager->fluidBodies_);
+        ComputeFluidForcesParallel(threads, simManager->fluidBodies_, [simManager, world, recompute](btCollisionObject* co)
         {
-            for(int h=0; h<numPairs; ++h)
-            {
-                const btBroadphasePair& pair = pairArray[h];
-                btBroadphasePair* colPair = world->getPairCache()->findPair(pair.m_pProxy0, pair.m_pProxy1);
-                if (!colPair)
-                    continue;
-                    
-                btCollisionObject* candidate1 = (btCollisionObject*)colPair->m_pProxy0->m_clientObject;
-                btCollisionObject* candidate2 = (btCollisionObject*)colPair->m_pProxy1->m_clientObject;
-                btCollisionObject* co = candidate1 == simManager->ocean_->getGhost() ? candidate2 : candidate1;
-                
-                if (threads != nullptr)
-                    threads->enqueue([](SimulationManager* sim, btDynamicsWorld* world, btCollisionObject* co, bool recompute){
-                        sim->ocean_->ApplyFluidForces(world, co, recompute); 
-                    }, simManager, world, co, recompute);
-                else
-                    simManager->ocean_->ApplyFluidForces(world, co, recompute);
-            }
-        }
-        
-        if (threads != nullptr)
-            threads->waitAll();
+            simManager->ocean_->ApplyFluidForces(world, co, recompute);
+        });
 
         simManager->perfMon_.HydrodynamicsFinished();
         if(recompute) SDL_UnlockMutex(simManager->simHydroMutex_);

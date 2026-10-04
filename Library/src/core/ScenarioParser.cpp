@@ -632,7 +632,9 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
             item->QueryAttribute("temperature", &waterTemperature);
         }
         
-        std::string waterName = sm_->GetMaterialManager()->CreateFluid("Water", waterDensity, 1.308e-3, 1.55); 
+        //Dynamic viscosity of water as a function of temperature (Vogel equation) [Pa*s]
+        Scalar waterViscosity = Scalar(2.414e-5) * btPow(Scalar(10), Scalar(247.8)/(waterTemperature + Scalar(273.15) - Scalar(140)));
+        std::string waterName = sm_->GetMaterialManager()->CreateFluid("Water", waterDensity, waterViscosity, 1.33); 
         sm_->EnableOcean(wavesHeight, sm_->GetMaterialManager()->GetFluid(waterName));
         sm_->GetOcean()->SetWaterType(jerlov);
         sm_->GetOcean()->SetConditions(waterTemperature);
@@ -1850,6 +1852,19 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
             comp->AddInternalPart(std::move(part), partOrigin, alwaysVisible);
             item = item->NextSiblingElement("internal_part");
         }
+
+        //Added mass of the whole body (e.g. identified experimentally), overriding the sum of the parts
+        if((item = element->FirstChildElement("hydrodynamics")) != nullptr)
+        {
+            const char* xyz = nullptr;
+            Vector3 aM(-1,-1,-1);
+            Vector3 aI(-1,-1,-1);
+            if(item->QueryStringAttribute("added_mass", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aM);
+            if(item->QueryStringAttribute("added_inertia", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aI);
+            comp->SetAddedMass(aM, aI);
+        }
         
         solid = std::move(comp);
     }
@@ -1866,6 +1881,8 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
         Vector3 I;
         Vector3 Cf(-1,-1,-1);
         Vector3 Cd(-1,-1,-1);    
+        Vector3 aM(-1,-1,-1);
+        Vector3 aI(-1,-1,-1);
         bool cgok;
         unsigned int uvMode = 0;
         float uvScale = 1.f;
@@ -1908,6 +1925,10 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
                 ParseVector(xyz, Cf);
             if(item->QueryStringAttribute("quadratic_drag", &xyz) == XML_SUCCESS)
                 ParseVector(xyz, Cd);  
+            if(item->QueryStringAttribute("added_mass", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aM);
+            if(item->QueryStringAttribute("added_inertia", &xyz) == XML_SUCCESS)
+                ParseVector(xyz, aI);
         } 
 
         //Origin    
@@ -2072,6 +2093,7 @@ std::unique_ptr<SolidEntity> ScenarioParser::ParseSolid(XMLElement* element, std
             solid->SetArbitraryPhysicalProperties(newMass, newI, newCg);
         }
         solid->SetHydrodynamicCoefficients(Cd, Cf);
+        solid->SetAddedMass(aM, aI);
     }
 
     //Contact properties (soft contact)

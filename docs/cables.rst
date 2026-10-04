@@ -23,6 +23,22 @@ Collisions
 
 Cables can collide with dynamic bodies, static bodies, and robot links. However, collision between cables, as well as, self-collisions are not supported.
 
+Hydrodynamics
+=============
+
+For cables in the "submerged" or "floating" physics mode, the buoyancy and the hydrodynamic drag are computed for each segment, based on its submerged volume.
+The drag is computed using the Morison equation for a cylinder, separately for the components of the flow velocity relative to the segment, normal (``v_n``) and tangential (``v_t``) to the segment axis:
+
+- form drag ``0.5 * rho * Cd * d * L * |v_n| * v_n``, with ``Cd = 1.2``,
+- skin friction ``0.5 * rho * Cf * pi * d * L * |v_t| * v_t``, with ``Cf = 0.01``,
+
+where ``rho`` is the density of the fluid, ``d`` is the cable diameter and ``L`` is the submerged length of the segment.
+The segment forces are distributed to the nodes of the cable consistently with their lumped masses (all nodes have equal mass), so that the total buoyancy of a submerged cable equals the weight of the displaced fluid and a neutrally buoyant cable stays in equilibrium.
+
+.. note::
+
+    The fluid forces are updated at a lower rate than the simulation (see the ``<fluid_dynamics prescaler="..."/>`` solver setting) and applied unchanged in between. To keep the simulation stable, the drag acting on very thin and light cables is limited, so that it cannot reverse the relative velocity of the cable nodes between two updates.
+
 Anchoring
 =========
 

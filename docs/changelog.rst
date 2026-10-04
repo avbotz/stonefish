@@ -41,7 +41,18 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - Limited the amount of simulation time advanced in one real-time update, to avoid a spiral of death when physics cannot keep up
 - Fixed crash on exit caused by detached threads of the physics thread pool, and by OpenGL resources released after the graphics context was destroyed
 - Fixed friction coefficients used for undefined material pairs
+- Fixed inertia of meshes with wall thickness (shells) and made the computation of principal axes of inertia robust
+- Reimplemented hydrodynamic drag of cables (Morison equation) and fixed excess buoyancy of cable end nodes
+- *Fixed form drag growing with the cube of velocity instead of the square*
+- *Reimplemented skin friction as turbulent friction with the coefficient estimated from the Reynolds number (ITTC-1957), unless defined by the user*
+- *Fixed weighting of directional drag coefficients (drag was overestimated for oblique flow)*
+- *Reimplemented the added mass: exact potential flow solution for ellipsoids with the same second moments of volume as the body (previously an enclosing ellipsoid and incorrect formulas were used, overestimating the added mass many times), and anisotropic added mass including the Munk moment*
+- Added an option to override the added mass and the added inertia of bodies (``added_mass``, ``added_inertia``), including compound bodies, with parser support
+- Fixed buoyancy of compound body parts crossing the surface (stale values of other parts) and of shell bodies at the surface
+- Fixed velocities of links of branched robots (Featherstone), used to compute their hydrodynamic forces
+- Fixed transforms of free rigid bodies lagging behind their velocities (interpolated motion state)
 - Fixed aerodynamic drag (linear instead of quadratic)
+- Water viscosity computed from the water temperature
 - Added exposure compensation of the color camera to the parser (``exposure_compensation``)
 - Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)

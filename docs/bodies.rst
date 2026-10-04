@@ -124,19 +124,22 @@ It is possible to override some of the automatically calculated properties of a 
 Overriding estimated hydrodynamic coefficients
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It is possible to override some automatically estimated hydrodynamic coeffcients of a dynamic body:
+It is possible to override some automatically estimated hydrodynamic coeffcients of a dynamic body. The ``quadratic_drag`` attribute defines the form drag coefficients, with respect to the frontal area, for the flow along the axes of the body origin frame. The ``viscous_drag`` attribute defines the (turbulent) skin friction coefficients. If not defined, they are estimated from the Reynolds number of the body (typically 0.003-0.008 for small marine robots). The ``added_mass`` and ``added_inertia`` attributes replace the automatically computed added mass [kg] and added moments of inertia [kgm\ :sup:`2`], along/about the axes of the body origin frame. Added mass of real vehicles can be significantly lower than the estimate based on their collision geometry, e.g., when the frame is built of perforated plates approximated with solid convex hulls.
 
 .. code-block:: xml
 
     <dynamic>
         <!-- all standard definitions -->
-        <hydrodynamics viscous_drag="0.05 0.08 0.08" quadratic_drag="0.2 0.6 0.6"/>
+        <hydrodynamics viscous_drag="0.004 0.004 0.004" quadratic_drag="0.2 1.0 1.0" added_mass="5.0 25.0 25.0" added_inertia="0.0 1.2 1.2"/>
     </dynamic>
 
 .. code-block:: cpp
 
     std::unique_ptr<sf::SolidEntity> solid = ...
-    solid->SetHydrodynamicCoefficients(sf::Vector3(0.2, 0.6, 0.6), sf::Vector3(0.05, 0.08, 0.08));
+    solid->SetHydrodynamicCoefficients(sf::Vector3(0.2, 1.0, 1.0), sf::Vector3(0.004, 0.004, 0.004));
+    solid->SetAddedMass(sf::Vector3(5.0, 25.0, 25.0), sf::Vector3(0.0, 1.2, 1.2));
+
+The ``hydrodynamics`` element can also be placed directly in the definition of a compound body (and a robot link of type ``compound``), to replace the added mass of the whole body, which is otherwise computed as the sum of the added mass of its external parts.
 
 Parametric solids
 =================

@@ -1033,6 +1033,15 @@ void GraphicalSimulationApp::StepSimulation()
 void GraphicalSimulationApp::CleanUp()
 {
     SimulationApp::CleanUp();
+
+    //Release all OpenGL resources while the context is still valid (the library is unloaded by SDL_Quit)
+    getSimulationManager()->DestroyScenario();
+    std::vector<ConsoleMessage> textLines = console_->getLines();
+    console_ = std::make_unique<Console>();
+    for(size_t i=0; i<textLines.size(); ++i)
+        console_->AppendMessage(textLines[i]);
+    gui_.reset();
+    glPipeline_.reset();
     glDeleteQueries(2, timeQuery_.data());
 
     if(joystick_ != nullptr)

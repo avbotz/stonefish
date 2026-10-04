@@ -77,9 +77,14 @@ The solver parameters that can be set through the XML definitions, with their co
 - ``<erp value="(0.0,1.0]"/>`` error correction factor (Baumgarte) for non-contact contraints
 - ``<stop_erp value="(0.0,1.0]"/>`` error correction factor (Baumgarte) for joint limits
 - ``<erp2 value="(0.0,1.0]"/>`` error correction factor (Baumgarte) for contact contraints
-- ``<global_damping value="[0.0,1.0]"/>`` damping factor used globally
-- ``<sleeping_thresholds linear="[0.0,+inf)" angular="[0.0,+inf)"/>`` magnitude of linear and angular velocities below which the bodies are considered immobile
+- ``<global_damping value="[0.0,1.0]"/>`` damping of linear and angular velocity applied to all dynamic bodies (default 0.0)
+- ``<sleeping_thresholds linear="[0.0,+inf)" angular="[0.0,+inf)"/>`` magnitude of linear and angular velocities below which the bodies are considered immobile (default 0.0, bodies never sleep)
+- ``<fluid_dynamics prescaler="[1,+inf)"/>`` number of simulation steps between consecutive computations of the fluid forces (buoyancy, drag), which are applied unchanged in between (default: steps per second divided by 50, i.e., update at ~50 Hz)
 - ``<multithreading max_physics_threads="[1,+inf)">`` maximum number of threads to use when computing fluid dynamics (should not exceed number of physical CPU cores)
+
+.. note::
+
+    The global damping and the sleeping thresholds are non-physical stabilisers. The global damping removes a fraction of the velocity of every dynamic body at each step, independently of the medium, while sleeping bodies stop responding to small forces, e.g., slow currents or a small buoyancy imbalance. Underwater, the hydrodynamic drag computed by the simulator already damps the motion of the bodies, so for realistic behaviour both should normally be left at 0.
 
 Using the code
 ==============

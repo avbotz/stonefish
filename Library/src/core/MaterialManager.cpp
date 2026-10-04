@@ -25,11 +25,21 @@
 
 #include "core/MaterialManager.h"
 
+#include <atomic>
 #include "core/SimulationApp.h"
 #include <algorithm>
 
 namespace sf
 {
+
+//Friction coefficients used for material pairs without a defined interaction
+static Friction DefaultFriction()
+{
+    Friction f;
+    f.fStatic = Scalar(1);
+    f.fDynamic = Scalar(1);
+    return f;
+}
 
 MaterialManager::~MaterialManager()
 {
@@ -58,9 +68,7 @@ std::string MaterialManager::CreateMaterial(const std::string& uniqueName, Scala
     cInfo("Material %s (%d) created.", mat.name.c_str(), materials_.size()-1);
     
     //Set initial friction coefficients
-    Friction f;
-    f.fStatic = Scalar(1);
-    f.fDynamic = Scalar(1);
+    Friction f = DefaultFriction();
     
     MaterialPair p;
     p.mat1Id = (int)materials_.size()-1;
@@ -125,13 +133,12 @@ Friction MaterialManager::GetMaterialsInteraction(int mat1Index, int mat2Index)
     }
     catch(const std::out_of_range& e)
     {
-        cError("Material pair (%d,%d) not found!", mat1Index, mat2Index);
+        //Called for every contact point -> report only once
+        static std::atomic<bool> reported(false);
+        if(!reported.exchange(true))
+            cWarning("Material pair (%d,%d) not found! Using default friction coefficients.", mat1Index, mat2Index);
         
-        Friction f;
-        f.fStatic = Scalar(1);
-        f.fDynamic = Scalar(2);
-        
-        return f;
+        return DefaultFriction();
     }
 }
 

@@ -160,6 +160,7 @@ namespace sf
             waitCondition_.wait(lock, [this]{ return activeTasks_ == 0; });
         }
 
+        //! A destructor that finishes all queued tasks and joins the worker threads (they reference this object).
         ~ThreadPool()
         {
             {

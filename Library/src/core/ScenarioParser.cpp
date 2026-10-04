@@ -551,7 +551,7 @@ bool ScenarioParser::ParseSolver(XMLElement* element)
     Scalar erp, stopErp;
     sm_->getJointErp(erp, stopErp);
     Scalar erp2 = sm_->getDynamicsWorld()->getSolverInfo().m_erp2;
-    Scalar globalDamping = sm_->getDynamicsWorld()->getSolverInfo().m_damping;
+    Scalar globalDamping = sm_->getBodyDamping();
     Scalar globalFriction = sm_->getDynamicsWorld()->getSolverInfo().m_friction;
     Scalar linSleep, angSleep;
     sm_->getSleepingThresholds(linSleep, angSleep);

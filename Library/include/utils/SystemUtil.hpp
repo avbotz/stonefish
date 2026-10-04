@@ -113,15 +113,17 @@ inline unsigned int GetPhysicalCores()
     return logical > 0 ? logical : 1; 
 }
 
+//Monotonic time (arbitrary epoch), only meaningful for measuring time intervals
 inline int64_t GetTimeInMicroseconds()
 {
-    std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
 }
 
+//Monotonic time (arbitrary epoch), only meaningful for measuring time intervals
 inline int64_t GetTimeInNanoseconds()
 {
-    std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 

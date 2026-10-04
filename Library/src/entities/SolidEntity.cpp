@@ -1076,7 +1076,7 @@ void SolidEntity::BuildRigidBody(btDynamicsWorld* world)
         
         btRigidBody::btRigidBodyConstructionInfo rigidBodyCI(M, motionState_.get(), collisionShape_.get(), I);
         rigidBodyCI.m_friction = rigidBodyCI.m_rollingFriction = rigidBodyCI.m_restitution = Scalar(0.); //not used
-        rigidBodyCI.m_linearDamping = rigidBodyCI.m_angularDamping = world->getSolverInfo().m_damping;
+        rigidBodyCI.m_linearDamping = rigidBodyCI.m_angularDamping = SimulationApp::getApp()->getSimulationManager()->getBodyDamping();
         rigidBodyCI.m_additionalDamping = false;
 
         rigidBody_ = std::make_unique<btRigidBody>(rigidBodyCI);

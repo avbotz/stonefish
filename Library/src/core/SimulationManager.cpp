@@ -90,10 +90,19 @@ SimulationManager::SimulationManager(Scalar stepsPerSecond, Solver st, Collision
     jointLimitErp_ = Scalar(0.2);
     linSleepThreshold_ = Scalar(0);
     angSleepThreshold_ = Scalar(0);
+    bodyDamping_ = Scalar(0);
+    sps_ = Scalar(0);
+    ssus_ = 0;
+    fdPrescaler_ = 1;
     fdCounter_ = 0;
     currentTime_ = 0;
     timeOffset_ = 0;
     simulationTime_ = 0;
+    //Simulation clock starts at system time (epoch) and advances with monotonic real time
+    clockBase_ = (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    clockBaseRealTime_ = GetTimeInMicroseconds();
+    droppedTime_ = 0;
+    lastDropWarning_ = -1;
     mlcpFallbacks_ = 0;
     callSimulationStepCompleted_ = true;
     sdm_ = DisplayMode::GRAPHICAL;
@@ -592,12 +601,17 @@ Scalar SimulationManager::getSimulationTime(bool applyOffset) const
 
 uint64_t SimulationManager::getSimulationClock() const
 {
-    return (uint64_t)ceil(realtimeFactor_ * (Scalar)GetTimeInMicroseconds());
+    //Realtime factor applied to the real time elapsed since it was last changed (clock does not jump when the factor changes)
+    SDL_LockMutex(simInfoMutex_);
+    uint64_t clock = clockBase_ + (uint64_t)ceil(realtimeFactor_ * (Scalar)(GetTimeInMicroseconds() - clockBaseRealTime_));
+    SDL_UnlockMutex(simInfoMutex_);
+    return clock;
 }
 
 void SimulationManager::SimulationClockSleep(uint64_t us)
 {
-    uint64_t t = (uint64_t)ceil((Scalar)us/realtimeFactor_);
+    Scalar rf = getRealtimeFactor();
+    uint64_t t = rf > Scalar(0) ? (uint64_t)ceil((Scalar)us/rf) : us; //Paused clock -> sleep in real time
     std::this_thread::sleep_for(std::chrono::microseconds(t));
 }
 
@@ -639,7 +653,11 @@ void SimulationManager::setFluidDynamicsPrescaler(unsigned int presc)
 void SimulationManager::setRealtimeFactor(Scalar f)
 {
     SDL_LockMutex(simInfoMutex_);
-    realtimeFactor_ = f;
+    //Rebase the simulation clock so that it stays continuous
+    int64_t now = GetTimeInMicroseconds();
+    clockBase_ += (uint64_t)ceil(realtimeFactor_ * (Scalar)(now - clockBaseRealTime_));
+    clockBaseRealTime_ = now;
+    realtimeFactor_ = f > Scalar(0) ? f : Scalar(0);
     SDL_UnlockMutex(simInfoMutex_);
 }
 
@@ -653,6 +671,11 @@ void SimulationManager::setCallSimulationStepCompleted(bool call)
 bool SimulationManager::getCallSimulationStepCompleted() const
 {
     return callSimulationStepCompleted_;
+}
+
+unsigned int SimulationManager::getFluidDynamicsPrescaler() const
+{
+    return fdPrescaler_;
 }
 
 Scalar SimulationManager::getStepsPerSecond() const
@@ -727,13 +750,23 @@ void SimulationManager::setSolverParams(Scalar erp, Scalar stopErp, Scalar erp2,
 
     dynamicsWorld_->getSolverInfo().m_erp = erp;
     dynamicsWorld_->getSolverInfo().m_erp2 = erp2;
-    dynamicsWorld_->getSolverInfo().m_damping = globalDamping;
     dynamicsWorld_->getSolverInfo().m_friction = globalFriction;
     
     jointErp_ = erp;
     jointLimitErp_ = stopErp;
     linSleepThreshold_ = linearSleepingThreshold;
     angSleepThreshold_ = angularSleepingThreshold;
+    setBodyDamping(globalDamping);
+}
+
+void SimulationManager::setBodyDamping(Scalar damping)
+{
+    bodyDamping_ = btClamped(damping, Scalar(0), Scalar(1));
+}
+
+Scalar SimulationManager::getBodyDamping() const
+{
+    return bodyDamping_;
 }
 
 void SimulationManager::setSolidDisplayMode(DisplayMode m)
@@ -860,7 +893,8 @@ void SimulationManager::InitializeSolver()
     //Unrealistic components
     dynamicsWorld_->getSolverInfo().m_globalCfm = Scalar(0.); //global constraint force mixing factor
     dynamicsWorld_->getSolverInfo().m_frictionCFM = Scalar(0.); //friction constraint force mixing factor
-    dynamicsWorld_->getSolverInfo().m_damping = Scalar(0.); //global damping
+    dynamicsWorld_->getSolverInfo().m_damping = Scalar(1.); //joint velocity error gain (NOT body damping, has to be 1 for joints to be stable)
+    bodyDamping_ = Scalar(0.); //global damping of bodies
     dynamicsWorld_->getSolverInfo().m_friction = Scalar(0.); //global friction
     dynamicsWorld_->getSolverInfo().m_restitution = Scalar(0.); // global restitution
     dynamicsWorld_->getSolverInfo().m_singleAxisRollingFrictionThreshold = Scalar(1e30); //single axis rolling velocity threshold
@@ -954,7 +988,8 @@ void SimulationManager::DestroyScenario()
     nameManager_->ClearNames();
     materialManager_->ClearMaterialsAndFluids();
 
-    if(SimulationApp::getApp() != nullptr && SimulationApp::getApp()->hasGraphics())
+    if(SimulationApp::getApp() != nullptr && SimulationApp::getApp()->hasGraphics()
+       && static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline() != nullptr)
         static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline()->getContent()->DestroyContent();
 }
 
@@ -1058,11 +1093,8 @@ void SimulationManager::AdvanceSimulation()
         return;
 
     //Calculate eleapsed time
-    uint64_t deltaTime;
-
     if(currentTime_ == 0) //Start of simulation
     {
-        deltaTime = 0.0;
         simulationTime_ = 0.0;
         currentTime_ = getSimulationClock();
         timeOffset_ = currentTime_;
@@ -1070,24 +1102,43 @@ void SimulationManager::AdvanceSimulation()
     }
 
     uint64_t timeInMicroseconds = getSimulationClock(); //Realtime factor included in clock
-    deltaTime = timeInMicroseconds - currentTime_; 
+    int64_t deltaTime = std::max((int64_t)timeInMicroseconds - (int64_t)currentTime_, int64_t(0)); //Clock going backwards does not advance simulation
     currentTime_ = timeInMicroseconds;
 
-    if(deltaTime < ssus_) //Sleep if clock did not tick one simulation step
+    if(deltaTime < (int64_t)ssus_) //Sleep if clock did not tick one simulation step
     {
-        SimulationClockSleep(ssus_ - deltaTime);
+        SimulationClockSleep(ssus_ - (uint64_t)deltaTime);
         timeInMicroseconds = getSimulationClock();
-        deltaTime += timeInMicroseconds - currentTime_;
+        deltaTime += std::max((int64_t)timeInMicroseconds - (int64_t)currentTime_, int64_t(0));
         currentTime_ = timeInMicroseconds;
     }
-    
-    StepSimulation((Scalar)deltaTime/Scalar(1000000.0));
-    
-    SDL_LockMutex(simInfoMutex_);
-    Scalar cpuUsageNow = (Scalar)perfMon_.getPhysicsTime()/(Scalar)deltaTime * Scalar(100);
-    Scalar filter(0.001);
-    cpuUsage_ = filter * cpuUsageNow + (Scalar(1)-filter) * cpuUsage_;   
-    SDL_UnlockMutex(simInfoMutex_);
+
+    //Limit time simulated in one call to ~0.05 s (avoids spiral of death when physics is slower than real time)
+    int64_t maxDeltaTime = (int64_t)ssus_ * std::max((int64_t)round(Scalar(50000)/(Scalar)ssus_), int64_t(1));
+    int64_t stepTime = deltaTime;
+    if(stepTime > maxDeltaTime) //Drop excess time
+    {
+        droppedTime_ += (uint64_t)(stepTime - maxDeltaTime);
+        stepTime = maxDeltaTime;
+        int64_t now = GetTimeInMicroseconds();
+        if(lastDropWarning_ < 0 || now - lastDropWarning_ >= 5000000) //Warn at most every 5 s
+        {
+            cWarning("Simulation cannot keep up with real time! Dropped %1.3lf s of simulation time.", (double)droppedTime_/1e6);
+            droppedTime_ = 0;
+            lastDropWarning_ = now;
+        }
+    }
+
+    StepSimulation((Scalar)stepTime/Scalar(1000000.0));
+
+    if(deltaTime > 0)
+    {
+        SDL_LockMutex(simInfoMutex_);
+        Scalar cpuUsageNow = (Scalar)perfMon_.getPhysicsTime()/(Scalar)deltaTime * Scalar(100);
+        Scalar filter(0.001);
+        cpuUsage_ = filter * cpuUsageNow + (Scalar(1)-filter) * cpuUsage_;
+        SDL_UnlockMutex(simInfoMutex_);
+    }
 }
 
 void SimulationManager::StepSimulation(Scalar timeStep)
@@ -1267,9 +1318,9 @@ bool SimulationManager::CustomMaterialCombinerCallback(btManifoldPoint& cp,	cons
             mat0 = ((Compound*)sent0)->getMaterial(((Compound*)sent0)->getPartId(index0));
         else
             mat0 = sent0->getMaterial();
-        //Vector3 localPoint0 = sent0->getTransform().getBasis() * cp.m_localPointA;
-        Vector3 localPoint0 = sent0->getCGTransform().inverse() * cp.getPositionWorldOnA();
-        contactVelocity0 = sent0->getLinearVelocityInLocalPoint(localPoint0);
+        //Contact point relative to CG, expressed in the world frame (as expected by getLinearVelocityInLocalPoint)
+        Vector3 relPoint0 = cp.getPositionWorldOnA() - colObj0Wrap->getCollisionObject()->getWorldTransform().getOrigin();
+        contactVelocity0 = sent0->getLinearVelocityInLocalPoint(relPoint0);
         contactAngularVelocity0 = sent0->getAngularVelocity().dot(-cp.m_normalWorldOnB);
     }
     else
@@ -1298,10 +1349,10 @@ bool SimulationManager::CustomMaterialCombinerCallback(btManifoldPoint& cp,	cons
             mat1 = ((Compound*)sent1)->getMaterial(((Compound*)sent1)->getPartId(index1));
         else
             mat1 = sent1->getMaterial();
-        //Vector3 localPoint1 = sent1->getTransform().getBasis() * cp.m_localPointB;
-        Vector3 localPoint1 = sent1->getCGTransform().inverse() * cp.getPositionWorldOnB();
-        contactVelocity1 = sent1->getLinearVelocityInLocalPoint(localPoint1);
-        contactAngularVelocity1 = sent1->getAngularVelocity().dot(cp.m_normalWorldOnB);
+        //Contact point relative to CG, expressed in the world frame (as expected by getLinearVelocityInLocalPoint)
+        Vector3 relPoint1 = cp.getPositionWorldOnB() - colObj1Wrap->getCollisionObject()->getWorldTransform().getOrigin();
+        contactVelocity1 = sent1->getLinearVelocityInLocalPoint(relPoint1);
+        contactAngularVelocity1 = sent1->getAngularVelocity().dot(-cp.m_normalWorldOnB); //Same axis as for body 0 -> difference is relative spin
     }
     else
     {

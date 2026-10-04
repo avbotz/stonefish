@@ -99,7 +99,7 @@ void Rudder::Update(Scalar dt)
         Ocean* ocn = SimulationApp::GetApp()->GetSimulationManager()->GetOcean();
 
         Vector3 absVel = attach_->GetLinearVelocityInLocalPoint(relPos);
-        Vector3 fluidVel = ocn->GetFluidVelocity(rudderTrans.getOrigin());
+        Vector3 fluidVel = ocn != nullptr ? ocn->GetFluidVelocity(rudderTrans.getOrigin()) : Vector3(0, 0, 0);
         Vector3 velocity = rudderTrans.getBasis().transpose()*(absVel - fluidVel);
 
         Scalar angle = atan2(velocity.getY(), velocity.getX());

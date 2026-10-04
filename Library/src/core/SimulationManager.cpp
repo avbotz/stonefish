@@ -807,26 +807,24 @@ void SimulationManager::InitializeSolver()
     }
     else
     {
-        btMLCPSolverInterface* mlcp;
-    
         switch(solver_)
         {
             default:
             case Solver::DANTZIG:
-                mlcp = new btDantzigSolver();
+                mlcpSolver_ = std::make_unique<btDantzigSolver>();
                 break;
             
             case Solver::PGS:
-                mlcp = new btSolveProjectedGaussSeidel();
+                mlcpSolver_ = std::make_unique<btSolveProjectedGaussSeidel>();
                 break;
             
             case Solver::LEMKE:
-                mlcp = new btLemkeSolver();
-                //((btLemkeSolver*)mlcp)->m_maxLoops = 10000;
+                mlcpSolver_ = std::make_unique<btLemkeSolver>();
+                //((btLemkeSolver*)mlcpSolver_.get())->m_maxLoops = 10000;
                 break;
         }
         
-        mbSolver_ = std::make_unique<btMultiBodyMLCPConstraintSolver>(mlcp);
+        mbSolver_ = std::make_unique<btMultiBodyMLCPConstraintSolver>(mlcpSolver_.get());
     }
     
     sbSolver_ = std::make_unique<btDefaultSoftBodySolver>();
@@ -936,6 +934,7 @@ void SimulationManager::DestroyScenario()
     //Destroy dynamics world
     dynamicsWorld_.reset();
     mbSolver_.reset();
+    mlcpSolver_.reset(); //Only referenced by mbSolver_, never owned by it
     sbSolver_.reset();
     dwBroadphase_.reset();
     dwDispatcher_.reset();
@@ -1207,6 +1206,9 @@ std::pair<Entity*, int>  SimulationManager::PickEntity(Vector3 eye, Vector3 ray)
 
 void SimulationManager::RenderBulletDebug()
 {
+    if(dynamicsWorld_ == nullptr || debugDrawer_ == nullptr) //No scenario built
+        return;
+
     dynamicsWorld_->debugDrawWorld();
     debugDrawer_->Render();
 }

@@ -975,7 +975,8 @@ void GraphicalSimulationApp::DoHUD()
 
         id.owner = 4;
         id.item = 0;
-        gui_->DoTimePlot(id, getWindowWidth()-300, getWindowHeight()-200, 290, 160, perfData, "Performance Monitor", new Scalar[2]{-1, 10000});
+        static Scalar perfRange[2] = {-1, 10000}; //Not owned by the GUI, so it must not be allocated per frame
+        gui_->DoTimePlot(id, getWindowWidth()-300, getWindowHeight()-200, 290, 160, perfData, "Performance Monitor", perfRange);
     }
 }
 

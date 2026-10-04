@@ -1909,7 +1909,7 @@ void SolidEntity::ComputeAerodynamicForces(const Mesh* mesh, Atmosphere* atm, co
         
         if(glm::dot(fn1, vn) < -1e-12f)
         {
-            glm::vec3 quadratic = vn * vn.length() * A;
+            glm::vec3 quadratic = vn * glm::length(vn) * A; //glm::vec3::length() is the component count, not the magnitude!
             //Accumulate
             Fda += quadratic;
             Tda += glm::cross(fc - p, quadratic);

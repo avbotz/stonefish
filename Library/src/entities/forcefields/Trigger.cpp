@@ -58,7 +58,8 @@ Trigger::Trigger(const std::string& uniqueName, Scalar radius, Scalar length, co
 {
     ghost_->setCollisionFlags(ghost_->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
     ghost_->setWorldTransform(worldTransform);
-    ghost_->setCollisionShape(new btCylinderShape(Vector3(radius, length/Scalar(2), radius)));
+    collisionShape_ = std::make_unique<btCylinderShape>(Vector3(radius, length/Scalar(2), radius));
+    ghost_->setCollisionShape(collisionShape_.get());
     active_ = false;
     
     std::unique_ptr<Mesh> mesh = OpenGLContent::BuildCylinder((GLfloat)radius, (GLfloat)length);
@@ -79,7 +80,8 @@ Trigger::Trigger(const std::string& uniqueName, const Vector3& dimensions, const
 {
     ghost_->setCollisionFlags(ghost_->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
     ghost_->setWorldTransform(worldTransform);
-    ghost_->setCollisionShape(new btBoxShape(dimensions/Scalar(2)));
+    collisionShape_ = std::make_unique<btBoxShape>(dimensions/Scalar(2));
+    ghost_->setCollisionShape(collisionShape_.get());
     active_ = false;
     
     glm::vec3 halfExt((GLfloat)(dimensions.x()/Scalar(2)), (GLfloat)(dimensions.y()/Scalar(2)), (GLfloat)(dimensions.z()/Scalar(2)));

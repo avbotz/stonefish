@@ -191,6 +191,9 @@ void Atmosphere::ApplyFluidForces(btDynamicsWorld* world, btCollisionObject* co,
     }
     else
         return;
+
+    if(ent == nullptr)
+        return;
     
     if(ent->getType() == EntityType::SOLID)
     {

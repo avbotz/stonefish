@@ -1713,6 +1713,16 @@ void SimulationManager::SimulationTickCallback(btDynamicsWorld* world, Scalar ti
 
         simManager->perfMon_.HydrodynamicsFinished();
         if(recompute) SDL_UnlockMutex(simManager->simHydroMutex_);
+
+        //Anisotropic added mass (correction of the total force accumulated above)
+        for(size_t i = 0; i < simManager->entities_.size(); ++i)
+        {
+            Entity* ent = simManager->entities_[i].get();
+            if(ent->GetType() == EntityType::SOLID)
+                static_cast<SolidEntity*>(ent)->ApplyAddedMassCorrection(simManager->ocean_.get());
+            else if(ent->GetType() == EntityType::FEATHERSTONE)
+                static_cast<FeatherstoneEntity*>(ent)->GetLink(0).solid->ApplyAddedMassCorrection(simManager->ocean_.get());
+        }
     }
 }
 

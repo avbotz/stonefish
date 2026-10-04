@@ -23,12 +23,21 @@
 uniform float shininess;
 uniform float specularStrength;
 
+const float PI = 3.14159265359;
+
+//Energy-normalized Blinn-Phong (Lambertian diffuse, normalized specular lobe)
 vec3 ShadingModel(vec3 N, vec3 V, vec3 L, vec3 Lcolor, vec3 albedo)
 {
 	vec3 H = normalize(V+L);
-	float diffuse = max(dot(N, L), 0.0);
-	float specular = pow(max(dot(N, H), 0.0), shininess) * specularStrength;
+	float NdotL = max(dot(N, L), 0.0);
+	float specular = (shininess + 8.0)/(8.0 * PI) * pow(max(dot(N, H), 0.0), shininess) * specularStrength;
     
-	return Lcolor * (diffuse * albedo + specular);
+	return Lcolor * (albedo / PI + specular) * NdotL;
+}
+
+//Environment lighting represented by the irradiance E, received from a uniformly bright hemisphere
+vec3 AmbientShadingModel(vec3 N, vec3 V, vec3 E, vec3 albedo)
+{
+	return E / PI * (albedo + vec3(specularStrength));
 }
 

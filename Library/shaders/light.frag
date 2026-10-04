@@ -23,5 +23,5 @@
 vec3 ShadingModel(vec3 N, vec3 V, vec3 L, vec3 Lcolor, vec3 albedo)
 {
 	float diffuse = max(dot(N, L), 0.0);
-	return Lcolor * diffuse * albedo;
+	return Lcolor * diffuse * albedo / 3.14159265359; //Lambertian
 }

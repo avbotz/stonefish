@@ -614,11 +614,15 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         log.Print(MessageType::INFO, "Ocean simulation enabled.");
         //Basic setup
         Scalar wavesHeight(0);
+        Scalar ripples(0.05);
         Scalar waterDensity(1000);
         Scalar waterTemperature(15.0);
         Scalar jerlov(0.2);
 
-        if((item = ocean->FirstChildElement("waves")) != nullptr
+        if((item = ocean->FirstChildElement("waves")) != nullptr)
+            item->QueryAttribute("ripples", &ripples); //Optional
+
+        if(item != nullptr
             && item->QueryAttribute("height", &wavesHeight) == XML_SUCCESS
             && wavesHeight > Scalar(0))
             log.Print(MessageType::INFO, "Using ocean surface with geometrical waves.");
@@ -637,6 +641,7 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         std::string waterName = sm_->GetMaterialManager()->CreateFluid("Water", waterDensity, waterViscosity, 1.33); 
         sm_->EnableOcean(wavesHeight, sm_->GetMaterialManager()->GetFluid(waterName));
         sm_->GetOcean()->SetWaterType(jerlov);
+        sm_->GetOcean()->SetRipples(ripples);
         sm_->GetOcean()->SetConditions(waterTemperature);
         
         //Particles

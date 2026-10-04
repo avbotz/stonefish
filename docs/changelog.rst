@@ -53,6 +53,11 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - Fixed transforms of free rigid bodies lagging behind their velocities (interpolated motion state)
 - Fixed aerodynamic drag (linear instead of quadratic)
 - Water viscosity computed from the water temperature
+- *Fixed lighting: inverse square law of point and spot lights, sun light applied with a double cosine factor and sky light too strong compared to the sun*
+- *Fixed tone mapping (filmic curve applied to the gamma-corrected image)*
+- Sun light under water is refracted and attenuated according to Fresnel equations, including the direction of the cast shadows
+- Implemented capillary ripples on the water surface and caustics under water, with parser support (``ripples``)
+- Implemented the view of the water surface from below: Snell's window, total internal reflection and the mirror image of the underwater scene
 - Added exposure compensation of the color camera to the parser (``exposure_compensation``)
 - Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)

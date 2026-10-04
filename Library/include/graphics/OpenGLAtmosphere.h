@@ -95,8 +95,9 @@ namespace sf
         /*!
          \param pipe a pointer to the rendering pipeline
          \param view a pointer to the current view
+         \param refracted a flag indicating if the shadows should be cast by the sun light refracted into water
          */
-        void BakeShadowmaps(OpenGLPipeline* pipe, OpenGLView* view);
+        void BakeShadowmaps(OpenGLPipeline* pipe, OpenGLView* view, bool refracted = false);
         
         //! A method to setup a material shaders.
         void SetupMaterialShaders();
@@ -172,6 +173,7 @@ namespace sf
         SunSkyUBO sunSkyUBOData_;
         
         //Shadows
+        glm::mat4 BuildLightModelView(glm::vec3 dirToLight);
         glm::mat4 BuildCropProjMatrix(ViewFrustum &f);
         void UpdateFrustumCorners(ViewFrustum &f, glm::vec3 center, glm::vec3 dir, glm::vec3 up);
         void UpdateSplitDist(GLfloat nd, GLfloat fd);
@@ -184,6 +186,8 @@ namespace sf
         std::vector<glm::mat4x4> sunShadowCPM_;
         std::vector<ViewFrustum> sunShadowFrustum_;
         glm::mat4x4 sunModelView_;
+        glm::mat4x4 sunRefractedModelView_;
+        glm::mat4x4 shadowModelView_;
         GLuint sunShadowFBO_;
 		std::unique_ptr<GLSLShader> sunShadowmapShader_; //debug draw shadowmap
         

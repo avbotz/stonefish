@@ -109,6 +109,12 @@ void Ocean::SetWaterType(Scalar jerlov)
     }
 }
 
+void Ocean::SetRipples(Scalar rmsSlope)
+{
+    if(glOcean_ != nullptr)
+        glOcean_->SetRipples((float)rmsSlope);
+}
+
 void Ocean::SetParticles(bool enabled)
 {
     if(glOcean_ != nullptr)

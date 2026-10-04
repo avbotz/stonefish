@@ -186,13 +186,12 @@ void main(void)
     float exposure = clamp(texelFetch(texExposure, ivec2(0,0), 0).r, 0.0, 0.0004);
     //Tone mapping
     vec3 color = texture(texSource, texcoord).rgb; 
-    color = accurateLinearToSRGB(exposure * exposureComp * color); //Gamma correction
-    float lum = dot(color, RGB_TO_LUM); //FXAA
-    color = ACESFitted(color); //Filmic tonemapping
+    color = ACESFitted(exposure * exposureComp * color); //Filmic tonemapping (scene-referred linear -> display-referred linear)
+    color = accurateLinearToSRGB(color); //Display encoding (gamma correction)
     //Saturation bump-up
     vec3 hsv = rgbToHsv(color);
     hsv.y = clamp(hsv.y*1.1, 0.0, 1.0);
     color = hsvToRgb(hsv);
-    //Final output
-    fragColor = vec4(color, lum);
+    //Final output (luma for FXAA)
+    fragColor = vec4(color, dot(color, RGB_TO_LUM));
 }

@@ -139,6 +139,22 @@ namespace sf
          \param v a pointer to a view object
          */
         void SetCurrentView(OpenGLView* v);
+
+        //! A method to set current view defined by matrices (e.g. a mirrored view used for reflections).
+        /*!
+         \param V the view matrix
+         \param P the projection matrix
+         \param eye the position of the eye
+         \param dir the looking direction
+         \param logDepthConstant the constant of the logarithmic depth buffer
+         */
+        void SetCurrentView(const glm::mat4& V, const glm::mat4& P, const glm::vec3& eye, const glm::vec3& dir, GLfloat logDepthConstant);
+
+        //! A method to set a world-space clipping plane applied to material shaders (zero vector disables clipping).
+        /*!
+         \param plane the plane coefficients (a,b,c,d), geometry with a*x+b*y+c*z+d < 0 is clipped
+         */
+        void SetClipPlane(const glm::vec4& plane);
         
         //! A method that binds the base vertex array.
         void BindBaseVertexArray();
@@ -559,6 +575,7 @@ namespace sf
         glm::mat4 viewProjection_; //Current view-projection matrix
         glm::vec2 viewportSize_; //Current view-port size
         GLfloat FC_; //Current logarithmic depth buffer constant
+        glm::vec4 clipPlane_; //Current clipping plane
         
         //Standard objects
         GLuint baseVertexArray_; //base VAO

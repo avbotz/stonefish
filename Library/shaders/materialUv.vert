@@ -36,6 +36,7 @@ uniform mat4 M;
 uniform mat3 N;
 uniform mat3 MV;
 uniform float FC;
+uniform vec4 clipPlane; //World-space clipping plane (used when rendering reflections)
 
 void main()
 {
@@ -46,6 +47,7 @@ void main()
 	eyeSpaceNormal = normalize(MV * n);
 	texCoord = uv;
 	fragPos = M * vec4(vt, 1.0);
+	gl_ClipDistance[0] = dot(clipPlane, fragPos);
 	gl_Position = MVP * vec4(vt, 1.0); 
     gl_Position.z = log2(max(1e-6, 1.0 + gl_Position.w)) * 2.0 * FC - 1.0;
     logz = 1.0 + gl_Position.w;

@@ -38,6 +38,10 @@ uniform vec4 gridSizes;
 uniform vec3 eyePos;
 uniform mat3 MV;
 uniform float FC;
+uniform sampler2D texRipples;
+uniform float flatOcean; //Surface normals computed from capillary ripples instead of FFT waves
+
+const float rippleTileSize = 2.5; //Keep in sync with OpenGLOcean.h
 
 #inject "lightingDef.glsl"
 
@@ -117,13 +121,18 @@ void main()
 	vec3 center = vec3(0, 0, planetRadiusInUnits);
 	vec3 Psky = vec3(P.xy/atmLengthUnitInMeters, clamp(P.z/atmLengthUnitInMeters, -100000.0/atmLengthUnitInMeters, -0.5/atmLengthUnitInMeters));
 	
-	//Wave slope (layers 1,2)
+	//Wave slope
     vec2 waveCoord = P.xy;
 	vec2 slopes = vec2(0.0);
-    slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.x, 1.0)).xy;
-	slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.y, 1.0)).zw;
-	slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.z, 2.0)).xy;
-	slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.w, 2.0)).zw;
+	if(flatOcean > 0.5) //Capillary ripples only
+		slopes = texture(texRipples, waveCoord/rippleTileSize).yz;
+	else //Layers 1,2 of the FFT ocean
+	{
+		slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.x, 1.0)).xy;
+		slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.y, 1.0)).zw;
+		slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.z, 2.0)).xy;
+		slopes += texture(texWaveFFT, vec3(waveCoord/gridSizes.w, 2.0)).zw;
+	}
 	
 	//Normals
 	vec3 normal = normalize(vec3(-slopes.x, -slopes.y, -1.0));
@@ -143,7 +152,7 @@ void main()
 	float ub = 0.5 + 0.5 * B / sqrt(A * C);
 	float uc = pow(C / SCALE, 0.25);
 	vec2 sigmaSq = texture(texSlopeVariance, vec3(ua, ub, uc)).xy;
-	sigmaSq = max(sigmaSq, 2e-5);
+	sigmaSq = flatOcean > 0.5 ? vec2(4e-4) : max(sigmaSq, 2e-5); //Variance of slopes not resolved by the normal map
 
 	vec3 Ty = normalize(vec3(0.0, normal.z, -normal.y));
 	vec3 Tx = cross(Ty, normal);

@@ -71,7 +71,19 @@ void Thruster::setSetpoint(Scalar s)
 void Thruster::setSetpointLimit(Scalar limit)
 {
     setpointLimit_ = btFabs(limit);
-    rotorModel_->setOutputLimit(setpointLimit_*2); // Protect against uncontrolled behavior
+
+    switch (rotorModel_->getType())
+    {
+        case RotorDynamicsType::ZERO_ORDER:
+        case RotorDynamicsType::FIRST_ORDER:
+        case RotorDynamicsType::MECHANICAL_PI: // Setpoint is the angular velocity of the rotor
+            rotorModel_->setOutputLimit(setpointLimit_*2); // Protect against uncontrolled behavior
+            break;
+
+        default: // Setpoint is the motor torque or voltage -> no relation to the angular velocity
+            rotorModel_->setOutputLimit(Scalar(-1)); // No limit
+            break;
+    }
 }
 
 Scalar Thruster::getSetpointLimit()
@@ -114,6 +126,23 @@ Scalar Thruster::getPropellerDiameter() const
     return D_;
 }
 
+Scalar Thruster::ImmersionFactor(Scalar depth, Scalar diameter)
+{
+    Scalar R = diameter/Scalar(2);
+    if (depth >= Scalar(2) * R) // Deep enough to avoid ventilation
+        return Scalar(1);
+    if (depth <= -R) // Propeller out of water
+        return Scalar(0);
+
+    // Submerged fraction of the propeller disk area (disk minus the circular segment above the surface)
+    Scalar x = btMin(depth/R, Scalar(1));
+    Scalar submerged = Scalar(1) - (btAcos(x) - x * btSqrt(Scalar(1) - x*x))/SIMD_PI;
+
+    // Ventilation (air drawn from the surface) within one diameter from the surface
+    Scalar ventilation = Scalar(0.5) + Scalar(0.5) * btClamped((depth - R)/R, Scalar(0), Scalar(1));
+    return submerged * ventilation;
+}
+
 void Thruster::Update(Scalar dt)
 {
     Actuator::Update(dt);
@@ -131,8 +160,9 @@ void Thruster::Update(Scalar dt)
     Transform solidTrans = attach_->getCGTransform();
     Transform thrustTrans = attach_->getOTransform() * o2a_;
     Ocean *ocn = SimulationApp::getApp()->getSimulationManager()->getOcean();
+    Scalar immersion = ocn != nullptr ? ImmersionFactor(ocn->GetDepth(thrustTrans.getOrigin()), D_) : Scalar(0);
 
-    if (ocn != nullptr && ocn->IsInsideFluid(thrustTrans.getOrigin()))
+    if (immersion > Scalar(0))
     {
         // Update Thrust
         if (thrustModel_->getType() == ThrustModelType::FD)
@@ -142,15 +172,24 @@ void Thruster::Update(Scalar dt)
             Scalar u = -thrustTrans.getBasis().getColumn(0).dot(ocn->GetFluidVelocity(thrustTrans.getOrigin()) - velocity);
             static_cast<FDThrust*>(thrustModel_.get())->setIncomingFluidVelocity(u);
             static_cast<FDThrust*>(thrustModel_.get())->setLiquidDensity(ocn->getLiquid().density);
+            std::pair<Scalar, Scalar> out = thrustModel_->Update(omega_); // Handedness accounted for in the model
+            thrust_ = out.first;
+            torque_ = out.second;
         }
-        std::pair<Scalar, Scalar> out = thrustModel_->Update(omega_);
-        thrust_ = out.first;
-        torque_ = out.second;
+        else
+        {
+            // Account for handedness of the propeller: a left-hand propeller is a mirror image of a right-hand one,
+            // so it behaves like a right-hand propeller rotating in the opposite direction, T_LH(w) = T(-w),
+            // while the reaction torque is mirrored, Q_LH(w) = -Q(-w) (always opposing the rotation)
+            std::pair<Scalar, Scalar> out = thrustModel_->Update(RH_ ? omega_ : -omega_);
+            thrust_ = out.first;
+            torque_ = RH_ ? out.second : -out.second;
+        }
 
-        // Account for handedness of the propeller
-        if (!RH_ && thrustModel_->getType() != ThrustModelType::FD)
-            thrust_ = -thrust_;
-    
+        // Reduce thrust and torque when the propeller is close to the surface
+        thrust_ *= immersion;
+        torque_ *= immersion;
+
         // Apply forces and torques
         Vector3 thrustV(thrust_, 0, 0);
         Vector3 torqueV(torque_, 0, 0);
@@ -258,6 +297,8 @@ ConstructInfo Thruster::getConstructInfo()
     node.childNodes.insert({"rm", childNode});
     // mechanical_pi
     node.childNodes.insert({"rotor_inertia", childNode});
+    node.childNodes.insert({"propeller_inertia", childNode}); // Alternative name
+    node.childNodes.insert({"max_torque", childNode});
     node.childNodes.insert({"kp", childNode});
     node.childNodes.insert({"ki", childNode});
     node.childNodes.insert({"ilimit", childNode});
@@ -270,6 +311,7 @@ ConstructInfo Thruster::getConstructInfo()
     childNode.attributes.clear();
     node.optional = false;
     node.attributes.insert({"type", {ConstructInfoValueType::STRING, false}});
+    node.attributes.insert({"torque_ratio", {ConstructInfoValueType::SCALAR, true}}); // Ratio of the reaction torque to the thrust (not used by the fluid dynamics model)
     
     childNode.optional = true;
     
@@ -394,8 +436,20 @@ std::unique_ptr<Thruster> Thruster::Construct(const std::string& uniqueName, Con
     {
         Scalar J = propeller->getInertia().getX() + propeller->getAddedInertia().getX();
         value = info.nodes.at("rotor_dynamics").childNodes.at("rotor_inertia").attributes.at("value");
+        if (!value.valid)
+            value = info.nodes.at("rotor_dynamics").childNodes.at("propeller_inertia").attributes.at("value");
         if (value.valid)
             J = std::get<Scalar>(value.value);
+        if (J <= Scalar(0))
+        {
+            cError("Rotor inertia of actuator '%s' has to be positive!", uniqueName.c_str());
+            return nullptr;
+        }
+
+        Scalar maxTorque(-1); // No limit
+        value = info.nodes.at("rotor_dynamics").childNodes.at("max_torque").attributes.at("value");
+        if (value.valid)
+            maxTorque = std::get<Scalar>(value.value);
             
         value = info.nodes.at("rotor_dynamics").childNodes.at("kp").attributes.at("value");
         if (!value.valid)
@@ -412,7 +466,7 @@ std::unique_ptr<Thruster> Thruster::Construct(const std::string& uniqueName, Con
             return nullptr;
         Scalar iLimit = std::get<Scalar>(value.value);
 
-        rotorDynamics = std::make_unique<MechanicalPI>(J, kp, ki, iLimit);
+        rotorDynamics = std::make_unique<MechanicalPI>(J, kp, ki, iLimit, maxTorque);
     }
     else
     {
@@ -463,7 +517,15 @@ std::unique_ptr<Thruster> Thruster::Construct(const std::string& uniqueName, Con
         auto input = stringToVector(inputString);
         auto output = stringToVector(outputString);
 
-        thrustModel = std::make_unique<InterpolatedThrust>(input, output);
+        try
+        {
+            thrustModel = std::make_unique<InterpolatedThrust>(input, output);
+        }
+        catch (const std::exception& e)
+        {
+            cError("Linear interpolation of actuator '%s' incorrect: %s", uniqueName.c_str(), e.what());
+            return nullptr;
+        }
     }
     else if (thrustModelType == "fluid_dynamics")
     {
@@ -479,6 +541,16 @@ std::unique_ptr<Thruster> Thruster::Construct(const std::string& uniqueName, Con
     else
     {
         return nullptr;
+    }
+
+    value = info.nodes.at("thrust_model").attributes.at("torque_ratio");
+    if (value.valid)
+    {
+        Scalar torqueRatio = std::get<Scalar>(value.value);
+        if (thrustModel->getType() != ThrustModelType::FD)
+            thrustModel->setTorqueRatio(torqueRatio);
+        else if (torqueRatio != Scalar(0))
+            cWarning("Torque ratio of actuator '%s' ignored - fluid dynamics thrust model uses torque coefficient.", uniqueName.c_str());
     }
 
     return std::make_unique<Thruster>(uniqueName, std::move(propeller), std::move(rotorDynamics), std::move(thrustModel), 

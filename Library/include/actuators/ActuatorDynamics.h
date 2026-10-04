@@ -28,6 +28,7 @@
 
 #include "StonefishCommon.h"
 #include <memory>
+#include <algorithm>
 
 namespace sf
 {
@@ -110,7 +111,8 @@ namespace sf
         */
         Scalar Update(Scalar dt, Scalar sp) override
         {
-            Scalar alpha = dt / tau_;
+            // Exact discretization of the first order lag (stable for any dt), non-positive tau means no lag
+            Scalar alpha = tau_ > Scalar(0) ? Scalar(1) - btExp(-dt / tau_) : Scalar(1);
             Scalar output = alpha * sp + (1 - alpha) * lastOutput_;
             lastOutput_ = outputLimit_ > Scalar(0) ?  btClamped(output, -outputLimit_, outputLimit_) : output;
             return lastOutput_;
@@ -142,12 +144,13 @@ namespace sf
         //! A method that updates the model.
         /*!
           \param dt simulation time step [s]
-          \param sp desired rotor angular velocity [rad/s]
+          \param sp motor torque [Nm]
         */
         Scalar Update(Scalar dt, Scalar sp) override
         {
             // state += dt*(beta*_cmd - alpha*state*std::abs(state));
-            Scalar output = lastOutput_ + dt * (beta_ * sp - (alpha_ * lastOutput_ * btFabs(lastOutput_)));
+            // Integrated with the quadratic damping term treated implicitly (stable for any dt)
+            Scalar output = (lastOutput_ + dt * beta_ * sp) / (Scalar(1) + dt * alpha_ * btFabs(lastOutput_));
             lastOutput_ = outputLimit_ > Scalar(0) ? btClamped(output, -outputLimit_, outputLimit_) : output;
             return lastOutput_;
         }
@@ -183,12 +186,13 @@ namespace sf
         //! A method that updates the model.
         /*!
           \param dt simulation time step [s]
-          \param sp desired rotor angular velocity [rad/s]
+          \param sp motor voltage [V]
         */
         Scalar Update(Scalar dt, Scalar sp) override
         {
-            Scalar output = lastOutput_ +
-                dt * (sp * Kt_/Rm_ - Kv1_ * lastOutput_ - Kv2_ * lastOutput_ * btFabs(lastOutput_))/Jmsp_;
+            // Jmsp * dw/dt = sp * Kt/Rm - Kv1 * w - Kv2 * w * |w|
+            // Integrated with the damping terms treated implicitly (stable for any dt)
+            Scalar output = (Jmsp_ * lastOutput_ + dt * sp * Kt_/Rm_) / (Jmsp_ + dt * (Kv1_ + Kv2_ * btFabs(lastOutput_)));
             lastOutput_ = outputLimit_ > Scalar(0) ?  btClamped(output, -outputLimit_, outputLimit_) : output;
             return lastOutput_;
         }
@@ -217,9 +221,10 @@ namespace sf
           \param Kp proportional gain of the PI controller [1]
           \param Ki integral gain of the PI controller [1]
           \param iLim integral limit [rad/s]
+          \param maxTorque limit of the motor torque, non-positive value means no limit [Nm]
         */
-        MechanicalPI(Scalar J, Scalar Kp, Scalar Ki, Scalar iLim)
-            : J_(J), Kp_(Kp), Ki_(Ki), iLim_(iLim), iError_(0), damping_(0)
+        MechanicalPI(Scalar J, Scalar Kp, Scalar Ki, Scalar iLim, Scalar maxTorque = Scalar(-1))
+            : J_(J), Kp_(Kp), Ki_(Ki), iLim_(iLim), maxTorque_(maxTorque), iError_(0), damping_(0)
         {
         }
 
@@ -230,12 +235,23 @@ namespace sf
         */
         Scalar Update(Scalar dt, Scalar sp) override
         {
-            Scalar error = sp - lastOutput_;
-            Scalar tau = Kp_ * error + Ki_ * iError_;
-            iError_ = btClamped(iError_ + error * dt, -iLim_, iLim_);
+            Scalar tauD = lastOutput_ > Scalar(0) ? damping_ : (lastOutput_ < Scalar(0) ? -damping_ : Scalar(0)); // Load opposing rotation
 
-            Scalar tauD = lastOutput_ > Scalar(0) ? damping_ : -damping_;
-            Scalar output = lastOutput_ + (tau - tauD)/J_ * dt;
+            // Semi-implicit step, J * (w1 - w0)/dt = Kp * (sp - w1) + Ki * iError - tauD (stable for any J, Kp and dt)
+            Scalar output = (J_ * lastOutput_ + dt * (Kp_ * sp + Ki_ * iError_ - tauD)) / (J_ + dt * Kp_);
+            Scalar tau = Kp_ * (sp - output) + Ki_ * iError_; // Motor torque
+
+            bool saturated = maxTorque_ > Scalar(0) && btFabs(tau) > maxTorque_;
+            if (saturated) // Motor torque limited
+            {
+                tau = btClamped(tau, -maxTorque_, maxTorque_);
+                output = lastOutput_ + (tau - tauD)/J_ * dt;
+            }
+
+            Scalar error = sp - output;
+            if (!saturated || error * tau < Scalar(0)) // Anti-windup (no integration deeper into saturation)
+                iError_ = btClamped(iError_ + error * dt, -iLim_, iLim_);
+
             lastOutput_ = outputLimit_ > Scalar(0) ?  btClamped(output, -outputLimit_, outputLimit_) : output;
             return lastOutput_;
         }
@@ -260,6 +276,7 @@ namespace sf
         Scalar Kp_;
         Scalar Ki_;
         Scalar iLim_;
+        Scalar maxTorque_;
         Scalar iError_;
         Scalar damping_;
     };
@@ -273,7 +290,8 @@ namespace sf
     {
     public:
         //! A constructor.
-        ThrustModel() = default;
+        ThrustModel() : torqueRatio_(0)
+        {}
 
         //! A destructor.
         virtual ~ThrustModel() = default;
@@ -287,6 +305,31 @@ namespace sf
 
         //! A method returning the type of the model.
         virtual ThrustModelType getType() = 0;
+
+        //! A method used to set the ratio of the reaction torque to the thrust (not used by the fluid dynamics model).
+        /*!
+          \param ratio absolute value of the torque to thrust ratio [m]
+        */
+        void setTorqueRatio(Scalar ratio)
+        {
+            torqueRatio_ = btFabs(ratio);
+        }
+
+    protected:
+        //! A method computing the reaction torque of a right-hand propeller, opposing its rotation.
+        /*!
+          \param input the input to the model (angular velocity of the propeller)
+          \param thrust the thrust computed by the model [N]
+          \return the reaction torque [Nm]
+        */
+        Scalar ReactionTorque(Scalar input, Scalar thrust)
+        {
+            if (torqueRatio_ <= Scalar(0) || input == Scalar(0))
+                return Scalar(0);
+            return (input > Scalar(0) ? -torqueRatio_ : torqueRatio_) * btFabs(thrust);
+        }
+
+        Scalar torqueRatio_;
     };
 
     // ---------- Implemententation of several models of thrust generation -----------
@@ -313,7 +356,7 @@ namespace sf
         {
             Scalar kt = input < Scalar(0) ? ktn_ : ktp_;
             Scalar thrust = kt * input * btFabs(input);
-            return std::make_pair(thrust, Scalar(0));
+            return std::make_pair(thrust, ReactionTorque(input, thrust));
         }
 
         //! A method returning the type of the model.
@@ -335,8 +378,8 @@ namespace sf
         /*!
           \param ktp positive thrust coefficient
           \param ktn negative thrust coefficient
-          \param dl lower limit of the deadband
-          \param du upper limit of the deadband
+          \param dl lower limit of the deadband (compared with input*|input|)
+          \param du upper limit of the deadband (compared with input*|input|)
         */
         DeadbandThrust(Scalar ktp, Scalar ktn, Scalar dl, Scalar du) : ktp_(ktp), ktn_(ktn), dl_(dl), du_(du)
         {
@@ -359,7 +402,7 @@ namespace sf
             {
                 thrust = ktp_ * (vv - du_);
             }
-            return std::make_pair(thrust, Scalar(0));
+            return std::make_pair(thrust, ReactionTorque(input, thrust));
         }
 
         //! A method returning the type of the model.
@@ -385,13 +428,31 @@ namespace sf
           \param out list of thrust data points
         */
         InterpolatedThrust(const std::vector<Scalar>& in, const std::vector<Scalar>& out)
-            : inputValues_(in), outputValues_(out)
         {
-            if (inputValues_.empty() || outputValues_.empty())
+            if (in.empty() || out.empty())
                 throw std::runtime_error("Interpolated thrust model: input and output values must not be empty!");
 
-            if (inputValues_.size() != outputValues_.size())
+            if (in.size() != out.size())
                 throw std::runtime_error("Interpolated thrust model: input and output values must be same size!");
+
+            // Sort data points by input value (required by the search algorithm)
+            std::vector<std::pair<Scalar, Scalar>> points;
+            for (size_t i = 0; i < in.size(); ++i)
+                points.push_back(std::make_pair(in[i], out[i]));
+            std::stable_sort(points.begin(), points.end(),
+                [](const std::pair<Scalar, Scalar>& a, const std::pair<Scalar, Scalar>& b) { return a.first < b.first; });
+
+            for (size_t i = 0; i < points.size(); ++i)
+            {
+                if (i > 0 && points[i].first == points[i-1].first) // Repeated input value
+                {
+                    if (points[i].second != points[i-1].second)
+                        throw std::runtime_error("Interpolated thrust model: repeated input value with different output values!");
+                    continue; // Skip duplicated data point
+                }
+                inputValues_.push_back(points[i].first);
+                outputValues_.push_back(points[i].second);
+            }
         }
 
         //! A method computing the model output.
@@ -403,7 +464,7 @@ namespace sf
         {
             Scalar thrust(0);
 
-            // Ensure the input values are sorted
+            // Input values are sorted and unique (ensured by the constructor)
             auto it = std::lower_bound(inputValues_.begin(), inputValues_.end(), input);
 
             if (it == inputValues_.begin()) // If the value is less than the smallest input value, return the first output value
@@ -422,9 +483,9 @@ namespace sf
                 Scalar x1 = inputValues_[idx];
                 Scalar y0 = outputValues_[idx - 1];
                 Scalar y1 = outputValues_[idx];
-                thrust = y0 + (input - x0) * (y1 - y0) / (x1 - x0);
+                thrust = x1 > x0 ? y0 + (input - x0) * (y1 - y0) / (x1 - x0) : y1;
             }
-            return std::make_pair(thrust, Scalar(0));
+            return std::make_pair(thrust, ReactionTorque(input, thrust));
         }
 
         //! A method returning the type of the model.
@@ -452,7 +513,7 @@ namespace sf
           \param rho initial fluid density [kg/m^3]
         */
         FDThrust(Scalar ktp, Scalar ktn, Scalar kq, Scalar D, bool RH, Scalar rho = Scalar(0))
-            : ktp_(ktp), ktn_(ktn), kq_(kq), D_(D), RH_(RH), rho_(rho)
+            : u_(0), ktp_(ktp), ktn_(ktn), kq_(kq), D_(D), RH_(RH), rho_(rho)
         {
             // TODO: Find a better way of defining alpha and beta
             alpha_ = -ktp;

@@ -105,6 +105,14 @@ namespace sf
         //! A method returning the construction info for the actuator.
         static ConstructInfo getConstructInfo();
 
+        //! A method computing the reduction of thrust caused by the proximity of the water surface.
+        /*!
+         \param depth depth of the propeller centre (positive underwater) [m]
+         \param diameter diameter of the propeller [m]
+         \return submerged fraction of the propeller disk multiplied by the ventilation factor <0,1>
+         */
+        static Scalar ImmersionFactor(Scalar depth, Scalar diameter);
+
         //! A method constructing the actuator based on info structure.
         /*!
          \param info a construction info structure

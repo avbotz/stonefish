@@ -238,7 +238,7 @@ The following XML syntax presents the structue of the definition:
 
 .. note:: 
 
-    The limit of the thruster setpoint, called ``max_setpoint``, is an absolute value. The setpoints will be limited symmetrically. The quantity represented by the setpoints depends on the type of the input of the selected ``rotor_dynamics`` model.
+    The limit of the thruster setpoint, called ``max_setpoint``, is an absolute value. The setpoints will be limited symmetrically. The quantity represented by the setpoints depends on the type of the input of the selected ``rotor_dynamics`` model. For the models with angular velocity input (``zero_order``, ``first_order`` and ``mechanical_pi``), the angular velocity of the propeller is additionally limited to twice the ``max_setpoint``, to protect against uncontrolled behaviour. The angular velocity is not limited for the models with torque or voltage input (``yoerger`` and ``bessa``).
 
 The following rotor dynamics models are implemented, with their respective parameters and example XML syntax. The output of all of the models is the angular velocity of the propeller and the input quantity depends on the model of choice.
 
@@ -249,7 +249,7 @@ The following rotor dynamics models are implemented, with their respective param
     <rotor_dynamics type="zero_order"/>
 
 2. ``first_order`` first order system, input is angular velocity [rad/s].
-  - ``time_constant``
+  - ``time_constant`` time constant [s] (a non-positive value disables the lag)
 
 .. code-block:: xml
 
@@ -285,22 +285,26 @@ The following rotor dynamics models are implemented, with their respective param
         <rm value="10.0"/>
     </rotor_dynamics>
 
-1. ``mechanical_pi`` mechanical model of a rotating propeller, controlled using PI controller, input is angular velocity [rad/s].
-  - ``rotor_inertia`` combined inertia of the propeller and the added intertia of the accelerated fluid
+5. ``mechanical_pi`` mechanical model of a rotating propeller, controlled using PI controller, input is angular velocity [rad/s].
+  - ``rotor_inertia`` (optional) combined inertia of the propeller and the added intertia of the accelerated fluid [kgm2] (computed from the propeller mesh if not specified, ``propeller_inertia`` is accepted as an alternative name)
   - ``kp`` proportional gain
   - ``ki`` integral gain
   - ``ilimit`` integral limit (anti-windup)
+  - ``max_torque`` (optional) limit of the motor torque [Nm] (no limit if not specified)
 
 .. code-block:: xml
 
     <rotor_dynamics type="mechanical_pi">
-        <propeller_inertia value="1.0"/>
+        <rotor_inertia value="1.0"/>
         <kp value="8.0"/>
         <ki value="5.0"/>
         <ilimit value="10.0"/>
+        <max_torque value="5.0"/>
     </rotor_dynamics>
 
 The following thrust models are implemented, with their respective parameters and example XML syntax. The input to all of the models is the angular velocity of the propeller and the outputs are the generated thrust and the induced torque.
+
+The parameters of the models describe a right-hand propeller. A left-hand propeller (``right="false"``) is a mirror image of a right-hand one, so when it rotates with angular velocity ω it generates the thrust that the model gives for -ω. As a result, a positive angular velocity produces a negative thrust and the forward and reverse characteristics of an asymmetric model are exchanged. The ``fluid_dynamics`` model accounts for the handedness internally. If the motor of a left-hand propeller is supposed to rotate in the opposite direction, so that a positive setpoint produces forward thrust (e.g., counter-rotating thrusters sharing the same thrust table), use ``inverted_setpoint="true"``.
 
 1. ``quadratic``
   - ``thrust_coeff`` symmetrical thrust coeffcient
@@ -313,7 +317,7 @@ The following thrust models are implemented, with their respective parameters an
   
 2. ``deadband``
   - ``thrust_coeff`` (``forward`` and ``reverse``) asymmetrical thrust coefficient
-  - ``deadband`` (``lower`` and ``upper``) deadband limits (tested on input)
+  - ``deadband`` (``lower`` and ``upper``) deadband limits, compared with ``ω|ω|`` (not with ω); the thrust is equal to ``reverse * (ω|ω| - lower)`` below the lower limit, ``forward * (ω|ω| - upper)`` above the upper limit, and zero in between
   
 .. code-block:: xml
 
@@ -323,7 +327,7 @@ The following thrust models are implemented, with their respective parameters an
     </thrust_model>
 
 3. ``linear_interpolation`` velocity to thrust transformation based on linearly interpolated tabulated data
-  - ``input`` space separated list of angular velocity values
+  - ``input`` space separated list of angular velocity values (sorted automatically, repeated values have to correspond to the same output value)
   - ``output`` space separated list of thrust values (length eqal to input!)
   
 .. code-block:: xml
@@ -344,6 +348,19 @@ The following thrust models are implemented, with their respective parameters an
         <torque_coeff value="0.1"/>
     </thrust_model>
 
+The ``quadratic``, ``deadband`` and ``linear_interpolation`` models do not generate torque by default. The optional attribute ``torque_ratio`` [m] of the ``thrust_model`` element adds a reaction torque, acting on the link about the thruster axis, with a magnitude of ``torque_ratio * |thrust|`` and a direction opposite to the rotation of the propeller (the same convention as in the ``fluid_dynamics`` model, which ignores this attribute). The default value is 0. For the Blue Robotics T200 thruster a value of about 0.02 m can be used (a rough estimate based on the rated power and speed, not a measured value), which gives about 1 Nm at full forward thrust. In the C++ code the ratio is set using the ``setTorqueRatio()`` method of the thrust model.
+
+.. code-block:: xml
+
+    <thrust_model type="linear_interpolation" torque_ratio="0.02">
+        <input value="-100.0 -20.0 0.0 20.0 100.0"/>
+        <output value="-7.0 -1.0 0.0 2.0 10.0"/>
+    </thrust_model>
+
+.. note::
+
+    The thrust and torque are reduced when the propeller is close to the water surface. They are multiplied by the submerged fraction of the propeller disk area, computed from the depth of the thruster origin (centre of the propeller) and the propeller diameter, assuming that the disk spans one diameter in the vertical direction. The result is additionally multiplied by a ventilation factor, which grows linearly from 0.5, when the centre of the propeller is at a depth equal to its radius, to 1.0, when it is at a depth equal to its diameter. Deeper than that the thrust is not affected, while a propeller that is completely out of water does not generate any thrust.
+
 An example of a full thruster definition utilising the XML syntax and the C++ code are shown below.
 
 .. code-block:: xml
@@ -356,7 +373,7 @@ An example of a full thruster definition utilising the XML syntax and the C++ co
             <look name="Red"/>
         </propeller>
         <rotor_dynamics type="mechanical_pi">
-            <propeller_inertia value="1.0"/>
+            <rotor_inertia value="1.0"/>
             <kp value="10.0"/>
             <ki value="5.0"/>
             <ilimit value="5.0"/>

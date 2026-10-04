@@ -85,6 +85,8 @@ OpenGLRealOcean::OpenGLRealOcean(GLfloat size, GLfloat state, SDL_mutex* hydrody
     sources.push_back(GLSLSource(GL_TESS_EVALUATION_SHADER, "oceanSurface.glsl"));
     sources.push_back(GLSLSource(GL_FRAGMENT_SHADER, "oceanSurface.frag"));
     oceanShaders_["surface"] = std::make_unique<GLSLShader>(sources, precompiled);
+    oceanShaders_["surface"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["surface"]->AddUniform("flatOcean", ParameterType::FLOAT);
     oceanShaders_["surface"]->AddUniform("u_scene_size", ParameterType::FLOAT);
     oceanShaders_["surface"]->AddUniform("eyePos", ParameterType::VEC3);
     oceanShaders_["surface"]->AddUniform("viewDir", ParameterType::VEC3);
@@ -105,6 +107,8 @@ OpenGLRealOcean::OpenGLRealOcean(GLfloat size, GLfloat state, SDL_mutex* hydrody
     oceanShaders_["surface"]->BindShaderStorageBlock("QTreeCull", SSBO_QTREE_CULL);
     
     oceanShaders_["surface"]->Use();
+    oceanShaders_["surface"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+    oceanShaders_["surface"]->SetUniform("flatOcean", 0.f);
     oceanShaders_["surface"]->SetUniform("transmittance_texture", TEX_ATM_TRANSMITTANCE);
     oceanShaders_["surface"]->SetUniform("scattering_texture", TEX_ATM_SCATTERING);
     oceanShaders_["surface"]->SetUniform("irradiance_texture", TEX_ATM_IRRADIANCE);
@@ -116,6 +120,8 @@ OpenGLRealOcean::OpenGLRealOcean(GLfloat size, GLfloat state, SDL_mutex* hydrody
     sources.pop_back();
     sources.push_back(GLSLSource(GL_FRAGMENT_SHADER, "oceanSurfaceTemp.frag"));
     oceanShaders_["surfaceTemp"] = std::make_unique<GLSLShader>(sources, precompiled);
+    oceanShaders_["surfaceTemp"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["surfaceTemp"]->AddUniform("flatOcean", ParameterType::FLOAT);
     oceanShaders_["surfaceTemp"]->AddUniform("u_scene_size", ParameterType::FLOAT);
     oceanShaders_["surfaceTemp"]->AddUniform("eyePos", ParameterType::VEC3);
     oceanShaders_["surfaceTemp"]->AddUniform("viewDir", ParameterType::VEC3);
@@ -137,6 +143,8 @@ OpenGLRealOcean::OpenGLRealOcean(GLfloat size, GLfloat state, SDL_mutex* hydrody
     oceanShaders_["surfaceTemp"]->BindShaderStorageBlock("QTreeCull", SSBO_QTREE_CULL);
     
     oceanShaders_["surfaceTemp"]->Use();
+    oceanShaders_["surfaceTemp"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+    oceanShaders_["surfaceTemp"]->SetUniform("flatOcean", 0.f);
     oceanShaders_["surfaceTemp"]->SetUniform("transmittance_texture", TEX_ATM_TRANSMITTANCE);
     oceanShaders_["surfaceTemp"]->SetUniform("scattering_texture", TEX_ATM_SCATTERING);
     oceanShaders_["surfaceTemp"]->SetUniform("irradiance_texture", TEX_ATM_IRRADIANCE);
@@ -150,6 +158,8 @@ OpenGLRealOcean::OpenGLRealOcean(GLfloat size, GLfloat state, SDL_mutex* hydrody
     sources.push_back(GLSLSource(GL_FRAGMENT_SHADER, "oceanBacksurface.frag"));
     sources.push_back(GLSLSource(GL_FRAGMENT_SHADER, "oceanOptics.frag"));
     oceanShaders_["backsurface"] = std::make_unique<GLSLShader>(sources, precompiled);
+    oceanShaders_["backsurface"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["backsurface"]->AddUniform("flatOcean", ParameterType::FLOAT);
     oceanShaders_["backsurface"]->AddUniform("u_scene_size", ParameterType::FLOAT);
     oceanShaders_["backsurface"]->AddUniform("eyePos", ParameterType::VEC3);
     oceanShaders_["backsurface"]->AddUniform("MVP", ParameterType::MAT4);
@@ -169,6 +179,8 @@ OpenGLRealOcean::OpenGLRealOcean(GLfloat size, GLfloat state, SDL_mutex* hydrody
     oceanShaders_["backsurface"]->BindShaderStorageBlock("QTreeCull", SSBO_QTREE_CULL);
     
     oceanShaders_["backsurface"]->Use();
+    oceanShaders_["backsurface"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+    oceanShaders_["backsurface"]->SetUniform("flatOcean", 0.f);
     oceanShaders_["backsurface"]->SetUniform("transmittance_texture", TEX_ATM_TRANSMITTANCE);
     oceanShaders_["backsurface"]->SetUniform("scattering_texture", TEX_ATM_SCATTERING);
     oceanShaders_["backsurface"]->SetUniform("irradiance_texture", TEX_ATM_IRRADIANCE);

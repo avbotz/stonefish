@@ -64,6 +64,7 @@ namespace sf
     };
  
     class GLSLShader;
+    class OpenGLPipeline;
     
     //! An abstract class implementing a camera view.
     class OpenGLCamera : public OpenGLView
@@ -96,7 +97,22 @@ namespace sf
         void DrawAO(GLfloat intensity);
         
         //! A method drawing the screen-space refflections effect.
-        void DrawSSR();
+        /*!
+         \param waterUnderside a flag indicating that the camera is under water (reflection on the water surface)
+         */
+        void DrawSSR(bool waterUnderside = false);
+
+        //! A method rendering the mirror image of the underwater scene, reflected by the flat water surface seen from below.
+        /*!
+         \param pipe a pointer to the rendering pipeline
+         */
+        void RenderWaterReflection(OpenGLPipeline* pipe);
+
+        //! A method returning the texture with the reflection of the scene on the water surface (0 if not rendered).
+        GLuint getWaterReflectionTexture();
+
+        //! A method checking if the flat water surface (plane z=0) can be seen by the camera placed under water.
+        bool CanSeeWaterSurface();
 
         //! A method generating a bloom effect.
         void GenerateBloom();
@@ -282,6 +298,10 @@ namespace sf
         GLuint postprocessStencilTex_;
         GLuint quaterPostprocessFBO_;
         GLuint quaterPostprocessTex_[2];
+
+        //Reflection on the water surface
+        GLuint reflectionFBO_;
+        GLuint reflectionTex_[2];
         
         //HBAO Cache-aware (NVIDIA designworks)
         GLuint aoBlurTex_;

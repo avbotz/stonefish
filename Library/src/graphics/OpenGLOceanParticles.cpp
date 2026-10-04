@@ -195,6 +195,7 @@ void OpenGLOceanParticles::Init()
     renderShader->AddUniform("reflectivity", ParameterType::FLOAT);
     renderShader->AddUniform("cWater", ParameterType::VEC3);
     renderShader->AddUniform("bWater", ParameterType::VEC3);
+    renderShader->AddUniform("texCaustics", ParameterType::INT);
     renderShader->AddUniform("transmittance_texture", ParameterType::INT);
     renderShader->AddUniform("scattering_texture", ParameterType::INT);
     renderShader->AddUniform("irradiance_texture", ParameterType::INT);
@@ -209,6 +210,7 @@ void OpenGLOceanParticles::Init()
     renderShader->SetUniform("transmittance_texture", TEX_ATM_TRANSMITTANCE);
     renderShader->SetUniform("scattering_texture", TEX_ATM_SCATTERING);
     renderShader->SetUniform("irradiance_texture", TEX_ATM_IRRADIANCE);
+    renderShader->SetUniform("texCaustics", TEX_OCEAN_CAUSTICS);
     renderShader->SetUniform("reflectivity", 0.f);
     renderShader->SetUniform("color", glm::vec4(0.f,0.f,0.f,0.3f));
     OpenGLState::UseProgram(0);

@@ -47,6 +47,9 @@ float SunShadow();
 vec4 PointLightContribution(int id, vec3 P, vec3 N, vec3 toEye, vec3 albedo);
 vec4 SpotLightContribution(int id, vec3 P, vec3 N, vec3 toEye, vec3 albedo);
 vec3 SunContribution(vec3 P, vec3 N, vec3 toEye, vec3 albedo, vec3 illuminance);
+vec3 SunContributionDir(vec3 P, vec3 N, vec3 toEye, vec3 albedo, vec3 illuminance, vec3 L);
+vec3 SunIlluminanceInWater(vec3 Eh, vec3 sunDir, vec3 S);
+vec3 SkyIlluminanceInWater(vec3 Eh, vec3 N);
 vec3 RefractToWater(vec3 I, vec3 N);
 vec3 RefractToAir(vec3 I, vec3 N);
 vec3 BeerLambert(float d);
@@ -76,12 +79,12 @@ void main()
 	vec3 center = vec3(0.0, 0.0, planetRadiusInUnits);
 	vec3 posSky = vec3(P.xy/atmLengthUnitInMeters,-0.5/atmLengthUnitInMeters);
 	vec3 skyIlluminance;
-	vec3 sunIlluminance = GetSunAndSkyIlluminance(posSky - center, N, sunDirection, skyIlluminance);
-	fragColor = color * skyIlluminance * BeerLambert(dw+P.z);
+	vec3 sunIlluminance = GetSunAndSkyIlluminance(posSky - center, waterSurfaceN, sunDirection, skyIlluminance);
+	fragColor = color * SkyIlluminanceInWater(skyIlluminance, N) / 3.14159265359 * BeerLambert(dw+P.z);
 	
-	//Sun
+	//Sun (refracted at the surface)
 	if(S.z > 0.0)
-		fragColor += SunContribution(P, N, V, color, sunIlluminance) * BeerLambert(dw+P.z/S.z);
+		fragColor += SunContributionDir(P, N, V, color, SunIlluminanceInWater(sunIlluminance, sunDirection, S), -S) * BeerLambert(dw+P.z/S.z);
 	
 	fragColor = fragColor/whitePoint; //Color correction and normalization
 	
@@ -124,13 +127,10 @@ void main()
     }
 
 	//2. In-scattering from Sun/Sky
-    vec3 R = RefractToWater(-sunDirection, waterSurfaceN);
-    if(R.z > 0.0 && sunDirection.z < 0.0)
+    if(S.z > 0.0 && sunDirection.z < 0.0)
     {
-	    vec3 skyIlluminance;
-	    vec3 sunIlluminance = GetSunAndSkyIlluminance(posSky - center, waterSurfaceN, sunDirection, skyIlluminance);
 	    vec3 L = sunIlluminance/whitePoint;
-	    fragColor += InScatteringSun(L, R, -V, max(eyePos.z, 0.0), dw);
+	    fragColor += InScatteringSun(L, S, -V, max(eyePos.z, 0.0), dw);
     }
 
 	//3. In-scattering from point lights

@@ -35,6 +35,8 @@
 #include "actuators/Actuator.h"
 #include "comms/Comm.h"
 
+class btMLCPSolverInterface;
+
 namespace sf
 {
     class NameManager;
@@ -555,6 +557,7 @@ namespace sf
 
         std::unique_ptr<btSoftMultiBodyDynamicsWorld> dynamicsWorld_;
         std::unique_ptr<btMultiBodyConstraintSolver> mbSolver_;
+        std::unique_ptr<btMLCPSolverInterface> mlcpSolver_; //Not owned by mbSolver_
         std::unique_ptr<btSoftBodySolver> sbSolver_;
         btSoftBodyWorldInfo sbInfo;
         std::unique_ptr<btCollisionDispatcher> dwDispatcher_;

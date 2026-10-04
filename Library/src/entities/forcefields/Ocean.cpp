@@ -230,6 +230,9 @@ void Ocean::ApplyFluidForces(btDynamicsWorld* world, btCollisionObject* co, bool
     }
     else
         return;
+
+    if (ent == nullptr)
+        return;
       
     HydrodynamicsSettings settings;
     

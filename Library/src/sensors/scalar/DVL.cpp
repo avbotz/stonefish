@@ -191,13 +191,14 @@ void DVL::InternalUpdate(Scalar dt)
         status = status == 3 ? 1 : 2;
     }
     
-    //Update noise characteristics
-    channels_[0].setStdDev(mulNoiseFactor_[0] * v.x() + addNoiseStdDev_[0]);
-    channels_[1].setStdDev(mulNoiseFactor_[0] * v.y() + addNoiseStdDev_[0]);
-    channels_[2].setStdDev(mulNoiseFactor_[0] * v.z() + addNoiseStdDev_[0]);
-    channels_[4].setStdDev(mulNoiseFactor_[1] * wv.x() + addNoiseStdDev_[1]);
-    channels_[5].setStdDev(mulNoiseFactor_[1] * wv.y() + addNoiseStdDev_[1]);
-    channels_[6].setStdDev(mulNoiseFactor_[1] * wv.z() + addNoiseStdDev_[1]);
+    //Update noise characteristics (magnitude of velocity used so that the noise
+    //scales correctly also for negative velocity components)
+    channels_[0].setStdDev(mulNoiseFactor_[0] * btFabs(v.x()) + addNoiseStdDev_[0]);
+    channels_[1].setStdDev(mulNoiseFactor_[0] * btFabs(v.y()) + addNoiseStdDev_[0]);
+    channels_[2].setStdDev(mulNoiseFactor_[0] * btFabs(v.z()) + addNoiseStdDev_[0]);
+    channels_[4].setStdDev(mulNoiseFactor_[1] * btFabs(wv.x()) + addNoiseStdDev_[1]);
+    channels_[5].setStdDev(mulNoiseFactor_[1] * btFabs(wv.y()) + addNoiseStdDev_[1]);
+    channels_[6].setStdDev(mulNoiseFactor_[1] * btFabs(wv.z()) + addNoiseStdDev_[1]);
     
     //Save data
     AddSampleToHistory(std::make_unique<Sample>(

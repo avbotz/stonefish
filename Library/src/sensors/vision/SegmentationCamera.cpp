@@ -99,6 +99,22 @@ void SegmentationCamera::InstallNewDataHandler(std::function<void(SegmentationCa
     newDataCallback_ = callback;
 }
 
+bool SegmentationCamera::PairWith(Camera* cam)
+{
+    if(cam == nullptr || cam->GetVisionSensorType() == VisionSensorType::SEGMENTATION_CAMERA
+       || glCamera_ == nullptr || cam->GetOpenGlView() == nullptr)
+        return false;
+
+    unsigned int w, h, camW, camH;
+    GetResolution(w, h);
+    cam->GetResolution(camW, camH);
+    if(w != camW || h != camH)
+        return false;
+
+    glCamera_->SetPairedView(cam->GetOpenGlView());
+    return true;
+}
+
 void SegmentationCamera::NewDataReady(void* data, unsigned int index)
 {
     if(newDataCallback_ != nullptr)

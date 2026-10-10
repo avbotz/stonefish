@@ -117,12 +117,17 @@ vec3 SunIlluminanceInWater(vec3 Eh, vec3 sunDir, vec3 S)
 
 /*
     Relative intensity of the direct sun light under water, resulting from focusing by the surface ripples (caustics).
+    Uses screen-space derivatives, so it has to be called in uniform control flow.
     \param P position of the point
     \param S direction of propagation of the refracted sun light
     \param z depth of the point below the surface
 */
 float Caustics(vec3 P, vec3 S, float z)
 {
+	//Footprint of the pixel in the map (derivatives taken before any branching)
+	vec2 dx = (dFdx(P.xy) - S.xy/max(S.z, 1e-3) * dFdx(z))/causticsTileSize;
+	vec2 dy = (dFdy(P.xy) - S.xy/max(S.z, 1e-3) * dFdy(z))/causticsTileSize;
+
 	if(z <= 0.0 || S.z <= 0.0)
 		return 1.0;
 
@@ -134,9 +139,11 @@ float Caustics(vec3 P, vec3 S, float z)
 	float l0 = floor(layer);
 	float l1 = min(l0 + 1.0, causticsLayers - 1.0);
 
-	//Blur due to the angular size of the sun (0.27 deg in air, reduced by refraction)
+	//Filtered over the pixel footprint (avoids aliasing on distant surfaces),
+	//but at least over the blur due to the angular size of the sun (0.27 deg in air, reduced by refraction)
 	float mapSize = float(textureSize(texCaustics, 0).x);
-	float lod = log2(max(z * 0.0035/(causticsTileSize/mapSize), 1.0));
+	float footprint = max(max(length(dx), length(dy)), z * 0.0035/causticsTileSize);
+	float lod = log2(max(footprint * mapSize, 1.0));
 	float maxLod = log2(mapSize);
 	
 	//Normalization by the mean intensity (energy lost where the focused light is smaller than a texel)

@@ -544,6 +544,7 @@ namespace sf
         RenderableType type;
         int lookId;
         int objectId;
+        GLushort segmentationId; //Pixel value in segmentation images, assigned per entity, sensor, actuator or comm (0 = unlabelled)
         std::string materialName;
         glm::mat4 model;
         glm::vec3 cor;
@@ -557,6 +558,7 @@ namespace sf
             type = RenderableType::SOLID;
             lookId = -1;
             objectId = -1;
+            segmentationId = 0;
             materialName = "";
             model = glm::mat4(1.f);
             cor = glm::vec3(0.f);

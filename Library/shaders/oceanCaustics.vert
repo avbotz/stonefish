@@ -23,11 +23,16 @@
     Traces the sun light refracted by the rippled water surface down to a given depth.
     Each vertex of the grid is a point on the surface; it is moved to the place where its ray reaches the depth,
     expressed relative to the point reached by the ray refracted by a flat surface (as looked up in oceanOptics.frag).
+    The slopes are evaluated from the sum of waves (as in oceanRipples.frag) instead of being interpolated from
+    the ripple texture, which would leave creases in the traced surface at the texel boundaries.
 */
+
+#define MAX_RIPPLE_WAVES 32 //Keep in sync with OpenGLOcean.h
 
 layout(location = 0) in vec2 gridCoord; //Coordinate in the grid <0,1>
 
-uniform sampler2D texRipples;
+uniform vec4 waves[MAX_RIPPLE_WAVES]; //Wave vector [rad/m], amplitude [m], phase at current time [rad]
+uniform int numWaves;
 uniform vec3 sunDir; //Unit vector pointing towards the sun (z axis pointing down)
 uniform float tileSize; //Size of the ripples tile [m]
 uniform float depth; //Depth of the map [m]
@@ -43,8 +48,13 @@ void main()
     //Point on the surface (grid extended to gather the light refracted from the neighbouring tiles)
     surfacePos = mix(vec2(-margin), vec2(1.0 + margin), gridCoord);
 
+    //Slopes of the surface (wave vectors are multiples of the fundamental wavenumber of the tile, so the sum is periodic)
+    vec2 x = surfacePos * tileSize;
+    vec2 slopes = vec2(0.0);
+    for(int i=0; i<numWaves; ++i)
+        slopes -= waves[i].z * sin(dot(waves[i].xy, x) + waves[i].w) * waves[i].xy;
+
     //Normal of the surface pointing up (towards the air)
-    vec2 slopes = textureLod(texRipples, surfacePos, 0.0).yz;
     vec3 N = normalize(vec3(-slopes, -1.0));
     vec3 L = -sunDir; //Direction of propagation of the sun light
 

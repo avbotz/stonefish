@@ -1026,9 +1026,11 @@ void GraphicalSimulationApp::StepSimulation()
 {
     SimulationApp::StepSimulation();
 
-    if(GetGlPipeline()->IsDrawingQueueEmpty())
+    //Never block the physics on the renderer, which holds this lock while it hands camera images
+    //to their callbacks: if it is busy, the queue is refilled after a later step
+    if(GetGlPipeline()->IsDrawingQueueEmpty()
+       && SDL_TryLockMutex(GetGlPipeline()->GetDrawingQueueMutex()) == 0)
     {
-        SDL_LockMutex(GetGlPipeline()->GetDrawingQueueMutex());
         GetSimulationManager()->UpdateDrawingQueue();
         SDL_UnlockMutex(GetGlPipeline()->GetDrawingQueueMutex());
     }

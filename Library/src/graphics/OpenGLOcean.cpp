@@ -354,7 +354,7 @@ OpenGLOcean::OpenGLOcean(GLfloat size)
     OpenGLState::BindFramebuffer(0);
 
     oceanShaders_["caustics"] = std::make_unique<GLSLShader>("oceanCaustics.frag", "oceanCaustics.vert");
-    oceanShaders_["caustics"]->AddUniform("texRipples", ParameterType::INT);
+    oceanShaders_["caustics"]->AddUniform("numWaves", ParameterType::INT);
     oceanShaders_["caustics"]->AddUniform("sunDir", ParameterType::VEC3);
     oceanShaders_["caustics"]->AddUniform("tileSize", ParameterType::FLOAT);
     oceanShaders_["caustics"]->AddUniform("depth", ParameterType::FLOAT);
@@ -508,7 +508,8 @@ void OpenGLOcean::GenerateCaustics(glm::vec3 sunDirection, GLfloat dt)
         OpenGLState::EnableBlend();
         glBlendFunc(GL_ONE, GL_ONE);
         oceanShaders_["caustics"]->Use();
-        oceanShaders_["caustics"]->SetUniform("texRipples", TEX_OCEAN_RIPPLES);
+        oceanShaders_["caustics"]->SetUniform("numWaves", (GLint)waves.size());
+        glUniform4fv(glGetUniformLocation(oceanShaders_["caustics"]->getProgramHandle(), "waves"), (GLsizei)waves.size(), glm::value_ptr(waves[0]));
         oceanShaders_["caustics"]->SetUniform("sunDir", sunDirection);
         oceanShaders_["caustics"]->SetUniform("tileSize", RIPPLE_TILE_SIZE);
         oceanShaders_["caustics"]->SetUniform("mapSize", (GLfloat)CAUSTICS_TEX_SIZE);

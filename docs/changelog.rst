@@ -48,6 +48,8 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - Added an option to override the added mass and the added inertia of bodies (``added_mass``, ``added_inertia``), including compound bodies, with parser support
 - Fixed buoyancy of compound body parts crossing the surface (stale values of other parts) and of shell bodies at the surface
 - Fixed velocities of links of branched robots (Featherstone), used to compute their hydrodynamic forces
+- *The segmentation camera labels pixels per named object (entity, sensor, actuator or communication device) instead of per internal mesh; the names of the pixel values are available from* ``SimulationManager::getSegmentationLabels()``
+- Added pairing of a segmentation camera with another camera (``paired_camera``), which makes it render in the same frames as that camera and from its viewpoint, so that it labels that camera's images exactly
 - Fixed transforms of free rigid bodies lagging behind their velocities (interpolated motion state)
 - Fixed aerodynamic drag (linear instead of quadratic)
 - Water viscosity computed from the water temperature

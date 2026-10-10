@@ -588,12 +588,18 @@ Segmentation camera
 
 The segmentation camera is a virtual imaging device that captures the ID of the objects in the scene. The output is an unsigned short integer bitmap, where the pixel values represent the object ID. Additionally, the sensor generates a color mapped image.
 
+Each named object of the simulation (entity, sensor, actuator or communication device) is drawn with its own ID, shared by all of its parts and kept for the whole scenario. The value 0 is the background and ``SegmentationCamera::OCEAN_PARTICLES_ID`` marks ocean particles. The name of the object drawn with ID `i` is the element `i` of ``SimulationManager::getSegmentationLabels()``; IDs are assigned when objects are first drawn, so the list grows during the first frame and ``SimulationManager::getSegmentationLabelsRevision()`` changes whenever it does.
+
+Cameras that are not updated every simulation step are rendered one per frame, so a segmentation camera does not see the same scene as any other camera. To label the images of another camera, e.g., to generate training data, the segmentation camera can be paired with it, using the optional ``paired_camera`` element (or ``SegmentationCamera::PairWith()``). The paired cameras must have the same resolution. The segmentation camera is then rendered in the same frames as the other camera, from its viewpoint and with its projection (its own origin and field of view are ignored), whenever it is due according to its own rate, and both report the same capture time for these frames.
+
 .. code-block:: xml
 
     <sensor name="SCam" rate="5.0" type="segmentation">
         <specs resolution_x="800" resolution_y="600" horizontal_fov="60.0"/>
         <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
         <link name="Link1"/>
+        <!-- Optional -->
+        <paired_camera name="Cam"/>
     </sensor>
 
 .. code-block:: cpp

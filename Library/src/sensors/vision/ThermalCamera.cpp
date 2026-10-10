@@ -212,11 +212,11 @@ std::unique_ptr<ThermalCamera> ThermalCamera::Construct(const std::string& uniqu
     Scalar near (STD_NEAR_PLANE_DISTANCE);
     Scalar far (STD_FAR_PLANE_DISTANCE);
 
-    ConstructInfoValue& value = info.nodes.at("rendering").attributes.at("near");
+    ConstructInfoValue& value = info.nodes.at("rendering").attributes.at("minimum_distance");
     if (value.valid)
         near = std::get<Scalar>(value.value);
 
-    value = info.nodes.at("rendering").attributes.at("far");
+    value = info.nodes.at("rendering").attributes.at("maximum_distance");
     if (value.valid)
         far = std::get<Scalar>(value.value);
 

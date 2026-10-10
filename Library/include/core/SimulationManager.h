@@ -26,6 +26,8 @@
 #pragma once
 
 #include <map>
+#include <mutex>
+#include <unordered_map>
 #include <utility>
 #include "StonefishCommon.h"
 #include "entities/forcefields/Ocean.h"
@@ -492,6 +494,21 @@ namespace sf
          \return the time of simulation in seconds
          */
         Scalar getSimulationTime(bool applyOffset = false) const;
+
+        //! A method returning the offset added to the simulation time when it is requested with the offset applied.
+        /*!
+         \return the offset between simulation time and system time in seconds
+         */
+        Scalar getSimulationTimeOffset() const;
+
+        //! A method returning the names of the objects drawn by the segmentation cameras (thread safe).
+        /*!
+         \return a vector whose element i is the name of the entity, sensor, actuator or communication device drawn with pixel value i (element 0, the background, is empty)
+         */
+        std::vector<std::string> getSegmentationLabels();
+
+        //! A method returning a number that changes whenever the segmentation labels change (thread safe).
+        unsigned int getSegmentationLabelsRevision();
         
         //! A method informing about the relation between the simulated time and real time.
         Scalar getRealtimeFactor() const;
@@ -585,6 +602,7 @@ namespace sf
         void RenderBulletDebug();
         void InitializeSolver();
         void InitializeScenario();
+        std::vector<Renderable> LabelForSegmentation(std::vector<Renderable> items, const std::string& name);
         
         // State
         Scalar simulationTime_; // Time of simulation run in seconds
@@ -655,5 +673,11 @@ namespace sf
         
         // Debugging
         std::unique_ptr<OpenGLDebugDrawer> debugDrawer_;
+
+        // Segmentation labels, assigned by name the first time something is drawn so they never change during a scenario
+        std::mutex segmentationMutex_;
+        std::vector<std::string> segmentationLabels_;
+        std::unordered_map<std::string, unsigned short> segmentationIds_;
+        unsigned int segmentationLabelsRevision_;
     };
 }

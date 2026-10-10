@@ -126,6 +126,15 @@ namespace sf
          \param index the id of the OpenGL depth camera
          */
         void setCamera(Camera* cam, unsigned int index = 0);
+
+        //! A method that pairs the camera with another view, from which it then renders, in the same frames.
+        /*!
+         \param view a pointer to the view (with the same resolution), or nullptr to unpair
+         */
+        void setPairedView(OpenGLView* view);
+
+        //! A method returning the view the camera is paired with (nullptr if not paired).
+        OpenGLView* getPairedView() const;
         
         //! A method returning the type of the view.
         ViewType getType() const override;
@@ -151,6 +160,7 @@ namespace sf
         bool needsUpdate_;
         bool newData_;
         glm::vec2 range_;
+        OpenGLView* pairedView_;
         GLuint renderDepthTex_;
         GLuint renderSegTex_[2];
         GLuint displaySegTex_;

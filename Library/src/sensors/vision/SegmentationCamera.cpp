@@ -99,6 +99,22 @@ void SegmentationCamera::InstallNewDataHandler(std::function<void(SegmentationCa
     newDataCallback_ = callback;
 }
 
+bool SegmentationCamera::PairWith(Camera* cam)
+{
+    if(cam == nullptr || cam->getVisionSensorType() == VisionSensorType::SEGMENTATION_CAMERA
+       || glCamera_ == nullptr || cam->getOpenGLView() == nullptr)
+        return false;
+
+    unsigned int w, h, camW, camH;
+    getResolution(w, h);
+    cam->getResolution(camW, camH);
+    if(w != camW || h != camH)
+        return false;
+
+    glCamera_->setPairedView(cam->getOpenGLView());
+    return true;
+}
+
 void SegmentationCamera::NewDataReady(void* data, unsigned int index)
 {
     if(newDataCallback_ != nullptr)
@@ -158,11 +174,11 @@ std::unique_ptr<SegmentationCamera> SegmentationCamera::Construct(const std::str
     Scalar near {STD_NEAR_PLANE_DISTANCE};
     Scalar far {STD_FAR_PLANE_DISTANCE};
 
-    ConstructInfoValue& value = info.nodes.at("rendering").attributes.at("near");
+    ConstructInfoValue& value = info.nodes.at("rendering").attributes.at("minimum_distance");
     if (value.valid)
         near = std::get<Scalar>(value.value);
 
-    value = info.nodes.at("rendering").attributes.at("far");
+    value = info.nodes.at("rendering").attributes.at("maximum_distance");
     if (value.valid)
         far = std::get<Scalar>(value.value);
 

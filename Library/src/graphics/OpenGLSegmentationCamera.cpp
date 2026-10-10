@@ -27,7 +27,7 @@
 
 #include "core/GraphicalSimulationApp.h"
 #include "entities/SolidEntity.h"
-#include "sensors/vision/Camera.h"
+#include "sensors/vision/SegmentationCamera.h"
 #include "graphics/OpenGLState.h"
 #include "graphics/GLSLShader.h"
 #include "graphics/OpenGLPipeline.h"
@@ -50,6 +50,7 @@ OpenGLSegmentationCamera::OpenGLSegmentationCamera(glm::vec3 eyePosition, glm::v
     continuous_ = continuousUpdate;
     newData_ = false;
     camera_ = nullptr;
+    pairedView_ = nullptr;
     this->range_ = range;
     
     SetupCamera(eyePosition, direction, cameraUp);
@@ -246,6 +247,16 @@ void OpenGLSegmentationCamera::setCamera(Camera* cam, unsigned int index)
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 }
 
+void OpenGLSegmentationCamera::setPairedView(OpenGLView* view)
+{
+    pairedView_ = view;
+}
+
+OpenGLView* OpenGLSegmentationCamera::getPairedView() const
+{
+    return pairedView_;
+}
+
 ViewType OpenGLSegmentationCamera::getType() const
 {
     return ViewType::SEGMENTATION_CAMERA;
@@ -262,10 +273,12 @@ void OpenGLSegmentationCamera::ComputeOutput(std::vector<Renderable>& objects, O
     OpenGLState::Viewport(0, 0, viewportWidth_, viewportHeight_);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glm::mat4 VP = GetProjectionMatrix() * GetViewMatrix();
+    //A paired camera renders exactly what the view it is paired with rendered in this frame
+    OpenGLView* source = pairedView_ != nullptr ? pairedView_ : this;
+    glm::mat4 VP = source->GetProjectionMatrix() * source->GetViewMatrix();
 
     segmentationCameraOutputShader->Use();
-    segmentationCameraOutputShader->SetUniform("FC", GetLogDepthConstant());
+    segmentationCameraOutputShader->SetUniform("FC", source->GetLogDepthConstant());
     
     for(size_t i=0; i<objects.size(); ++i)
     {
@@ -273,14 +286,15 @@ void OpenGLSegmentationCamera::ComputeOutput(std::vector<Renderable>& objects, O
             continue;
         segmentationCameraOutputShader->SetUniform("MVP", VP * objects[i].model);
         segmentationCameraOutputShader->SetUniform("M", objects[i].model);
-        segmentationCameraOutputShader->SetUniform("objectId", (GLuint)objects[i].objectId+1);
+        //Objects without a label are drawn too, as background, so that they hide what is behind them
+        segmentationCameraOutputShader->SetUniform("objectId", (GLuint)objects[i].segmentationId);
         content->DrawObject(objects[i].objectId, -1, objects[i].model);
     }
 
-    if(ocean != nullptr && ocean->GetDepth(eye_) > 0.f)
+    if(ocean != nullptr && ocean->GetDepth(source->GetEyePosition()) > 0.f)
     {
         OpenGLOcean* glOcean = ocean->getOpenGLOcean();
-        glOcean->DrawParticlesId(this, (GLushort)(UINT16_MAX-1));
+        glOcean->DrawParticlesId(source, SegmentationCamera::OCEAN_PARTICLES_ID);
     }
 
     //Flip image
@@ -342,7 +356,8 @@ void OpenGLSegmentationCamera::DrawLDR(GLuint destinationFBO, bool updated)
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
         OpenGLState::UnbindTexture(TEX_POSTPROCESS1);
-        captureTime_ = pendingCaptureTime_;
+        //The paired view was rendered just before, in the same frame
+        captureTime_ = pairedView_ != nullptr ? pairedView_->getCaptureTime() : pendingCaptureTime_;
         newData_ = true;
     }
 }

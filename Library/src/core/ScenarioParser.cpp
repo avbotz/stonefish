@@ -51,6 +51,7 @@
 #include "sensors/scalar/LinkSensor.h"
 #include "sensors/scalar/JointSensor.h"
 #include "sensors/VisionSensor.h"
+#include "sensors/vision/SegmentationCamera.h"
 #include "sensors/Contact.h"
 #include "actuators/LinkActuator.h"
 #include "actuators/JointActuator.h"
@@ -85,6 +86,7 @@ bool ScenarioParser::Parse(std::string filename)
 {
     cInfo("Scenario parser: Loading scenario from '%s'.", filename.c_str());
     log.Print(MessageType::INFO, "Scenario file: %s", filename.c_str());
+    cameraPairs_.clear();
     
     //Open file
     XMLError result = doc_.LoadFile(filename.c_str());
@@ -323,6 +325,19 @@ bool ScenarioParser::Parse(std::string filename)
             return false;
         }
         element = element->NextSiblingElement("contact");
+    }
+
+    //Pair segmentation cameras, now that the cameras they are paired with exist wherever they were defined
+    for(size_t i=0; i<cameraPairs_.size(); ++i)
+    {
+        SegmentationCamera* seg = dynamic_cast<SegmentationCamera*>(sm_->getSensor(cameraPairs_[i].first));
+        Camera* cam = dynamic_cast<Camera*>(sm_->getSensor(cameraPairs_[i].second));
+        if(seg == nullptr || !seg->PairWith(cam))
+        {
+            log.Print(MessageType::ERROR, "Segmentation camera '%s' cannot be paired with camera '%s' (missing, or a different resolution)!", 
+                cameraPairs_[i].first.c_str(), cameraPairs_[i].second.c_str());
+            return false;
+        }
     }
     
     log.Print(MessageType::INFO, "Parsing finished normally.");
@@ -2733,6 +2748,22 @@ std::unique_ptr<Sensor, SensorDeleter> ScenarioParser::ParseSensor(XMLElement* e
             sens = std::unique_ptr<Sensor, SensorDeleter>(factory->construct(sensorName, rate, info).release(), Sensor::defaultDeleter);
         else
             return {nullptr, nullptr};
+    }
+
+    //---- Pairing ----
+    if((item = element->FirstChildElement("paired_camera")) != nullptr)
+    {
+        const char* pairedName = nullptr;
+        if(sens == nullptr || sens->getType() != SensorType::VISION 
+           || static_cast<VisionSensor*>(sens.get())->getVisionSensorType() != VisionSensorType::SEGMENTATION_CAMERA
+           || item->QueryStringAttribute("name", &pairedName) != XML_SUCCESS)
+        {
+            log.Print(MessageType::ERROR, "Paired camera of sensor '%s' not properly defined (only segmentation cameras can be paired)!", sensorName.c_str());
+            return {nullptr, nullptr};
+        }
+        //Named like the sensor, within the same robot or entity
+        std::string pairedStr(pairedName);
+        cameraPairs_.emplace_back(sensorName, namePrefix != "" ? namePrefix + "/" + pairedStr : pairedStr);
     }
 
     //---- Visuals ----

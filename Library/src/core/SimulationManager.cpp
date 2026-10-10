@@ -69,6 +69,7 @@
 #include "comms/Comm.h"
 #include "sensors/Contact.h"
 #include "sensors/VisionSensor.h"
+#include "sensors/vision/SegmentationCamera.h"
 
 extern ContactAddedCallback gContactAddedCallback;
 extern ContactProcessedCallback gContactProcessedCallback;
@@ -106,6 +107,7 @@ SimulationManager::SimulationManager(Scalar stepsPerSecond, Solver st, Collision
     mlcpFallbacks_ = 0;
     callSimulationStepCompleted_ = true;
     sdm_ = DisplayMode::GRAPHICAL;
+    segmentationLabelsRevision_ = 0;
     simHydroMutex_ = SDL_CreateMutex();
     simSettingsMutex_ = SDL_CreateMutex();
     simInfoMutex_ = SDL_CreateMutex();
@@ -599,6 +601,54 @@ Scalar SimulationManager::getSimulationTime(bool applyOffset) const
     return st;
 }
 
+Scalar SimulationManager::getSimulationTimeOffset() const
+{
+    return timeOffset_/(Scalar)1e6;
+}
+
+std::vector<std::string> SimulationManager::getSegmentationLabels()
+{
+    std::lock_guard<std::mutex> lock(segmentationMutex_);
+    return segmentationLabels_;
+}
+
+unsigned int SimulationManager::getSegmentationLabelsRevision()
+{
+    std::lock_guard<std::mutex> lock(segmentationMutex_);
+    return segmentationLabelsRevision_;
+}
+
+std::vector<Renderable> SimulationManager::LabelForSegmentation(std::vector<Renderable> items, const std::string& name)
+{
+    if(items.empty())
+        return items;
+
+    unsigned short id = 0;
+    {
+        std::lock_guard<std::mutex> lock(segmentationMutex_);
+        auto it = segmentationIds_.find(name);
+        if(it != segmentationIds_.end())
+            id = it->second;
+        else
+        {
+            if(segmentationLabels_.empty())
+                segmentationLabels_.push_back(""); //Background
+            //Values from the ocean particles up are reserved, so anything beyond is left unlabelled
+            if(segmentationLabels_.size() < SegmentationCamera::OCEAN_PARTICLES_ID)
+            {
+                id = (unsigned short)segmentationLabels_.size();
+                segmentationLabels_.push_back(name);
+                ++segmentationLabelsRevision_;
+            }
+            segmentationIds_[name] = id;
+        }
+    }
+
+    for(size_t i=0; i<items.size(); ++i)
+        items[i].segmentationId = id;
+    return items;
+}
+
 uint64_t SimulationManager::getSimulationClock() const
 {
     //Realtime factor applied to the real time elapsed since it was last changed (clock does not jump when the factor changes)
@@ -988,6 +1038,13 @@ void SimulationManager::DestroyScenario()
     nameManager_->ClearNames();
     materialManager_->ClearMaterialsAndFluids();
 
+    {
+        std::lock_guard<std::mutex> lock(segmentationMutex_);
+        segmentationLabels_.clear();
+        segmentationIds_.clear();
+        ++segmentationLabelsRevision_;
+    }
+
     if(SimulationApp::getApp() != nullptr && SimulationApp::getApp()->hasGraphics()
        && static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline() != nullptr)
         static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getGLPipeline()->getContent()->DestroyContent();
@@ -1182,7 +1239,7 @@ void SimulationManager::UpdateDrawingQueue()
  
     //Solids, manipulators, systems....
     for(size_t i=0; i<entities_.size(); ++i)
-        glPipeline->AddToDrawingQueue(entities_[i]->Render());
+        glPipeline->AddToDrawingQueue(LabelForSegmentation(entities_[i]->Render(), entities_[i]->getName()));
 
     std::pair<Entity*, int> selected = static_cast<GraphicalSimulationApp*>(SimulationApp::getApp())->getSelectedEntity();
     if(selected.first != nullptr)
@@ -1200,7 +1257,7 @@ void SimulationManager::UpdateDrawingQueue()
     //Actuators
     for(size_t i=0; i<actuators_.size(); ++i)
     {
-        glPipeline->AddToDrawingQueue(actuators_[i]->Render());
+        glPipeline->AddToDrawingQueue(LabelForSegmentation(actuators_[i]->Render(), actuators_[i]->getName()));
         if (actuators_[i]->getType() == ActuatorType::LINK 
             && static_cast<LinkActuator*>(actuators_[i].get())->getLinkActuatorType() == LinkActuatorType::LIGHT)
         {
@@ -1211,14 +1268,14 @@ void SimulationManager::UpdateDrawingQueue()
     //Sensors
     for(size_t i=0; i<sensors_.size(); ++i)
     {
-        glPipeline->AddToDrawingQueue(sensors_[i]->Render());
+        glPipeline->AddToDrawingQueue(LabelForSegmentation(sensors_[i]->Render(), sensors_[i]->getName()));
         if(sensors_[i]->getType() == SensorType::VISION)
             (static_cast<VisionSensor*>(sensors_[i].get()))->UpdateTransform();
     }
     
     //Comms
     for(size_t i=0; i<comms_.size(); ++i)
-        glPipeline->AddToDrawingQueue(comms_[i]->Render());
+        glPipeline->AddToDrawingQueue(LabelForSegmentation(comms_[i]->Render(), comms_[i]->getName()));
     
     //Trackball
     static_cast<OpenGLTrackball*>(glPipeline->getContent()->getView(0))->UpdateCenterPos();

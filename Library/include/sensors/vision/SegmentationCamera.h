@@ -76,6 +76,15 @@ namespace sf
          */
         void InstallNewDataHandler(std::function<void(SegmentationCamera*)> callback);
 
+        //! A method pairing the camera with another camera, so that it segments that camera's images.
+        /*!
+         The segmentation is then rendered in the same frames as the other camera, from its viewpoint and with its projection,
+         whenever it is due according to the rate of this camera. Both report the same capture time for these frames.
+         \param cam a pointer to a camera with the same resolution, which is not a segmentation camera
+         \return true if the cameras were paired
+         */
+        bool PairWith(Camera* cam);
+
         //! A method returning the pointer to the image data.
         /*!
          \param index the id of the OpenGL camera for which the data pointer is requested
@@ -88,6 +97,12 @@ namespace sf
         
         //! A method returning the type of the vision sensor.
         VisionSensorType getVisionSensorType() const override;
+
+        //! The pixel value of ocean particles (marine snow), which belong to no object.
+        /*!
+         Other pixel values index SimulationManager::getSegmentationLabels(), with 0 being the background.
+         */
+        static constexpr unsigned short OCEAN_PARTICLES_ID = 65534;
 
         //! A method returning a pointer to the underlaying OpenGLView object.
         OpenGLView* getOpenGLView() const override;

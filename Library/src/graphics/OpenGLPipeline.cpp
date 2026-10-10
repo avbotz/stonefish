@@ -393,12 +393,20 @@ void OpenGLPipeline::Render(SimulationManager* sim)
     //Update the queue of views needing update
     unsigned int updateCount = 0;
     std::vector<unsigned int> viewsNoUpdate; //View that are not needing update but have to be displayed
+    std::vector<unsigned int> pairedViews; //Views rendered together with the view they are paired with
     for(int i=content_->getViewsCount()-1; i >= 0; --i) //Go through views in reverse order
     {
         OpenGLView* view = content_->getView(i);
         
         if(!view->isEnabled()) //Skip disabled views
             continue;
+
+        if(view->getType() == ViewType::SEGMENTATION_CAMERA 
+           && static_cast<OpenGLSegmentationCamera*>(view)->getPairedView() != nullptr)
+        {
+            pairedViews.push_back(i);
+            continue;
+        }
       
         if(view->needsUpdate())
         {
@@ -764,6 +772,25 @@ void OpenGLPipeline::Render(SimulationManager* sim)
             break;
         }
     }
+    //Segmentation cameras paired with a view rendered in this frame, when they are due: they render the same scene
+    //from the same viewpoint, so that they label its image exactly
+    for(size_t i=0; i<pairedViews.size(); ++i)
+    {
+        OpenGLSegmentationCamera* camera = static_cast<OpenGLSegmentationCamera*>(content_->getView(pairedViews[i]));
+        auto rendered = std::find_if(viewsQueue_.begin(), viewsQueue_.begin() + updateCount, 
+            [this, camera](unsigned int id) { return content_->getView(id) == camera->getPairedView(); });
+        if(rendered != viewsQueue_.begin() + updateCount && camera->needsUpdate())
+        {
+            OpenGLState::EnableDepthTest();
+            OpenGLState::EnableCullFace();
+            OpenGLState::DisableBlend();
+            camera->ComputeOutput(drawingQueueCopy_, ocean);
+            camera->DrawLDR(screenFBO_, true);
+        }
+        else
+            viewsNoUpdate.push_back(pairedViews[i]);
+    }
+
     //Draw views that are displayed but not updated
     for(size_t i=0; i<viewsNoUpdate.size(); ++i)
     {

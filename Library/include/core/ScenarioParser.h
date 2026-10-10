@@ -291,6 +291,7 @@ namespace sf
         XMLDocument doc_;
         SimulationManager* sm_;
         bool graphical_;
+        std::vector<std::pair<std::string, std::string>> cameraPairs_; //Segmentation cameras and the cameras they are paired with, resolved when all are parsed
     };
 }
 

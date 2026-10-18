@@ -117,6 +117,7 @@ void OpenGLOceanParticles::Draw(OpenGLView* view, OpenGLOcean* glOcn)
     renderShader->SetUniform("viewDir", view->GetLookingDirection());
     renderShader->SetUniform("cWater", glOcn->GetLightAttenuation());
     renderShader->SetUniform("bWater", glOcn->GetLightScattering());
+    renderShader->SetUniform("waterBottom", glOcn->getBottom());
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO_PARTICLE_POS, particlePosSSBO_);
     OpenGLState::BindTexture(TEX_MAT_ALBEDO, GL_TEXTURE_2D, flakeTexture);
     OpenGLState::EnableBlend();
@@ -195,6 +196,7 @@ void OpenGLOceanParticles::Init()
     renderShader->AddUniform("reflectivity", ParameterType::FLOAT);
     renderShader->AddUniform("cWater", ParameterType::VEC3);
     renderShader->AddUniform("bWater", ParameterType::VEC3);
+    renderShader->AddUniform("waterBottom", ParameterType::VEC2);
     renderShader->AddUniform("texCaustics", ParameterType::INT);
     renderShader->AddUniform("transmittance_texture", ParameterType::INT);
     renderShader->AddUniform("scattering_texture", ParameterType::INT);

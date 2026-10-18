@@ -364,6 +364,9 @@ namespace sf
          \param id the id of the look
          */
         const Look& GetLook(size_t id);
+
+        //! A method informing if any look reflects the scene (needs screen-space reflections).
+        bool hasReflectiveLooks();
         
         //! A static method to load a texture.
         /*!

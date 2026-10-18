@@ -140,6 +140,7 @@ OpenGLFlatOcean::OpenGLFlatOcean(GLfloat size) : OpenGLOcean(200000.f)
     oceanShaders_["backsurface"]->AddUniform("viewport", ParameterType::VEC2);
     oceanShaders_["backsurface"]->AddUniform("cWater", ParameterType::VEC3);
     oceanShaders_["backsurface"]->AddUniform("bWater", ParameterType::VEC3);
+    oceanShaders_["backsurface"]->AddUniform("waterBottom", ParameterType::VEC2);
     oceanShaders_["backsurface"]->AddUniform("transmittance_texture", ParameterType::INT);
     oceanShaders_["backsurface"]->AddUniform("scattering_texture", ParameterType::INT);
     oceanShaders_["backsurface"]->AddUniform("irradiance_texture", ParameterType::INT);
@@ -199,6 +200,11 @@ OpenGLFlatOcean::~OpenGLFlatOcean()
     glDeleteBuffers(1, &vbo_);
 }
     
+bool OpenGLFlatOcean::simulatesWaves()
+{
+    return false;
+}
+
 void OpenGLFlatOcean::UpdateSurface(OpenGLView* view)
 {
 }
@@ -279,6 +285,7 @@ void OpenGLFlatOcean::DrawBacksurface(OpenGLView* view)
     oceanShaders_["backsurface"]->SetUniform("gridSizes", params_.gridSizes);
     oceanShaders_["backsurface"]->SetUniform("cWater", GetLightAttenuation());
     oceanShaders_["backsurface"]->SetUniform("bWater", GetLightScattering());
+    oceanShaders_["backsurface"]->SetUniform("waterBottom", getBottom());
     oceanShaders_["backsurface"]->SetUniform("viewport", glm::vec2((GLfloat)viewport[2], (GLfloat)viewport[3]));
     oceanShaders_["backsurface"]->SetUniform("texWaveFFT", TEX_POSTPROCESS1);
     oceanShaders_["backsurface"]->SetUniform("texSlopeVariance", TEX_POSTPROCESS2);

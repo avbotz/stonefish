@@ -58,6 +58,15 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - Sun light under water is refracted and attenuated according to Fresnel equations, including the direction of the cast shadows
 - Implemented capillary ripples on the water surface and caustics under water, with parser support (``ripples``)
 - Implemented the view of the water surface from below: Snell's window, total internal reflection and the mirror image of the underwater scene
+- Implemented the diffuse light under water, reflected by a bottom (e.g. the floor of a pool) and by the surface, which lights shadows and surfaces facing sideways and down and scatters in the water, with parser support (``<bottom>``)
+- *In-scattering of the sun light is no longer multiplied by 10 (the in-scattering of the diffuse light replaces it)*
+- Added exposure compensation of the color camera to the parser (``exposure_compensation``)
+- Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
+- The graphical app can render on demand (``renderOnDemand_``): a frame is drawn only when a view is due or there was input
+- Sensor cameras are rendered as they become due, paced by the fastest one: slower cameras and the window are rendered right after its frames, and the window at most every 50 ms while cameras run
+- Caustics computed only for the frames rendering cameras, at most 30 times per second, down to the bottom, on a coarser grid
+- Flat ocean no longer simulates the waves; screen-space reflections under a flat surface only for reflective looks; mirror image of the scene in the surface rendered without sun shadows; fewer samples in soft shadows
+- The window is rendered at most every 33 ms when no camera runs, not at all while minimized, and without screen-space reflections above the surface; caustics maps of 512x512 texels
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)
 
 1.5

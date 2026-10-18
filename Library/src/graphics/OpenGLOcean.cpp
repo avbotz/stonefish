@@ -74,6 +74,7 @@ OpenGLOcean::OpenGLOcean(GLfloat size)
     oceanSize_ = size;
     particlesEnabled_ = true;
     waterTemperature_ = 15.f;
+    bottom_ = glm::vec2(1000.f, 0.f);
 
     //Create simulation textures
     oceanTextures_[3] = OpenGLContent::GenerateTexture(GL_TEXTURE_2D_ARRAY, glm::uvec3(params_.fftSize, params_.fftSize, layers), 
@@ -164,6 +165,7 @@ OpenGLOcean::OpenGLOcean(GLfloat size)
     oceanShaders["blur"] = std::make_unique<GLSLShader>("oceanBlur.frag");
     oceanShaders["blur"]->AddUniform("cWater", ParameterType::VEC3);
     oceanShaders["blur"]->AddUniform("bWater", ParameterType::VEC3);
+    oceanShaders["blur"]->AddUniform("waterBottom", ParameterType::VEC2);
     oceanShaders["blur"]->AddUniform("blurScale", ParameterType::FLOAT);
     oceanShaders["blur"]->AddUniform("blurShape", ParameterType::VEC2);
     oceanShaders["blur"]->AddUniform("texScene", ParameterType::INT);
@@ -187,6 +189,7 @@ OpenGLOcean::OpenGLOcean(GLfloat size)
     oceanShaders_["background"]->AddUniform("eyePos", ParameterType::VEC3);
     oceanShaders_["background"]->AddUniform("cWater", ParameterType::VEC3);
     oceanShaders_["background"]->AddUniform("bWater", ParameterType::VEC3);
+    oceanShaders_["background"]->AddUniform("waterBottom", ParameterType::VEC2);
     oceanShaders_["background"]->AddUniform("transmittance_texture", ParameterType::INT);
     oceanShaders_["background"]->AddUniform("scattering_texture", ParameterType::INT);
     oceanShaders_["background"]->AddUniform("irradiance_texture", ParameterType::INT);
@@ -514,7 +517,9 @@ void OpenGLOcean::GenerateCaustics(glm::vec3 sunDirection, GLfloat dt)
         oceanShaders_["caustics"]->SetUniform("tileSize", RIPPLE_TILE_SIZE);
         oceanShaders_["caustics"]->SetUniform("mapSize", (GLfloat)CAUSTICS_TEX_SIZE);
         OpenGLState::BindVertexArray(causticsVAO_);
-        for(GLint i=0; i<CAUSTICS_LAYERS; ++i)
+        //Only the maps down to the bottom are ever looked up
+        GLint layers = glm::clamp((GLint)floorf(2.f * log2f(glm::max(bottom_.x, CAUSTICS_DEPTH0)/CAUSTICS_DEPTH0)) + 2, 2, CAUSTICS_LAYERS);
+        for(GLint i=0; i<layers; ++i)
         {
             //Grid extended by the maximum expected displacement of the refracted light (light from the neighbouring tiles)
             GLfloat depth = CAUSTICS_DEPTH0 * powf(2.f, 0.5f * (GLfloat)i);
@@ -560,6 +565,16 @@ void OpenGLOcean::SetWaterTemperature(GLfloat t)
 GLfloat OpenGLOcean::GetWaterTemperature()
 {
     return waterTemperature_;
+}
+
+void OpenGLOcean::setBottom(GLfloat depth, GLfloat albedo)
+{
+    bottom_ = glm::vec2(glm::max(depth, 0.f), glm::clamp(albedo, 0.f, 1.f));
+}
+
+glm::vec2 OpenGLOcean::getBottom()
+{
+    return bottom_;
 }
     
 void OpenGLOcean::SetParticles(bool enabled)
@@ -643,7 +658,12 @@ void OpenGLOcean::InitializeSimulation()
     OpenGLState::BindFramebuffer(0);    
 }
 
-void OpenGLOcean::Simulate(GLfloat dt)
+bool OpenGLOcean::simulatesWaves()
+{
+    return true;
+}
+
+void OpenGLOcean::SimulateWaves(GLfloat dt)
 {	
     OpenGLState::DisableDepthTest();
     OpenGLState::DisableCullFace();
@@ -727,6 +747,14 @@ void OpenGLOcean::Simulate(GLfloat dt)
     OpenGLState::EnableCullFace();
     
     OpenGLState::BindVertexArray(0);
+}
+
+void OpenGLOcean::Simulate(GLfloat dt)
+{
+    if(simulatesWaves())
+        SimulateWaves(dt);
+    else
+        params_.t += dt;
     
     //Update currents uniform buffer
     glBindBuffer(GL_UNIFORM_BUFFER, oceanCurrentsUBO_);
@@ -768,6 +796,7 @@ void OpenGLOcean::DrawBackground(OpenGLView* view)
     oceanShaders_["background"]->SetUniform("eyePos", view->GetEyePosition());
     oceanShaders_["background"]->SetUniform("cWater", GetLightAttenuation());
     oceanShaders_["background"]->SetUniform("bWater", GetLightScattering());
+    oceanShaders_["background"]->SetUniform("waterBottom", getBottom());
     glCullFace(GL_FRONT);
     static_cast<GraphicalSimulationApp*>(SimulationApp::GetApp())->GetGlPipeline()->GetContent()->SetDrawingMode(DrawingMode::RAW);
     static_cast<GraphicalSimulationApp*>(SimulationApp::GetApp())->GetGlPipeline()->GetContent()->DrawObject(oceanBoxObj_, -1, glm::mat4(1.f));
@@ -946,6 +975,7 @@ void OpenGLOcean::ApplySpecialEffects(OpenGLCamera* cam)
     oceanShaders["blur"]->Use();
     oceanShaders["blur"]->SetUniform("cWater", getLightAttenuation());
     oceanShaders["blur"]->SetUniform("bWater", getLightScattering());
+    oceanShaders["blur"]->SetUniform("waterBottom", getBottom());
     oceanShaders["blur"]->SetUniform("blurScale", 0.002f);
     oceanShaders["blur"]->SetUniform("blurShape", glm::vec2(1.f/(GLfloat)viewport[2], 1.f/(GLfloat)viewport[3]));
     oceanShaders["blur"]->SetUniform("texScene", TEX_POSTPROCESS1);

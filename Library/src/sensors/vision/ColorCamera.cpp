@@ -41,20 +41,19 @@ ColorCamera::ColorCamera(std::string_view uniqueName, unsigned int resolutionX, 
     newDataCallback_ = nullptr;
     imageData_ = nullptr;
     glCamera_ = nullptr;
+    exposureComp_ = Scalar(0);
 }
     
 void ColorCamera::SetExposureCompensation(Scalar comp)
 {
+    exposureComp_ = comp;
     if(glCamera_ != nullptr)
         glCamera_->SetExposureCompensation((GLfloat)comp);
 }
     
 Scalar ColorCamera::GetExposureCompensation() const
 {
-    if(glCamera_ != nullptr)
-        return (Scalar)glCamera_->GetExposureCompensation();
-    else
-        return Scalar(0);
+    return exposureComp_;
 }
 
 void* ColorCamera::GetImageDataPointer(unsigned int index)
@@ -83,6 +82,7 @@ void ColorCamera::InitGraphics(bool& seesParticles)
     // Set up camera
     glCamera_ = glCamera.get();
     glCamera_->SetCamera(this);
+    glCamera_->SetExposureCompensation((GLfloat)exposureComp_);
     UpdateTransform();
     glCamera_->UpdateTransform();
     InternalUpdate(0);
@@ -137,6 +137,7 @@ ConstructInfo ColorCamera::GetConstructInfo()
     node.optional = true;
     node.attributes.insert({"minimum_distance", {ConstructInfoValueType::SCALAR, true}});
     node.attributes.insert({"maximum_distance", {ConstructInfoValueType::SCALAR, true}});
+    node.attributes.insert({"exposure_compensation", {ConstructInfoValueType::SCALAR, true}});
     info.nodes.insert({"rendering", node});
 
     return info;
@@ -161,7 +162,13 @@ std::unique_ptr<ColorCamera> ColorCamera::Construct(std::string_view uniqueName,
     if (value.valid)
         far = std::get<Scalar>(value.value);
 
-    return std::make_unique<ColorCamera>(uniqueName, resolutionX, resolutionY, hFov, frequency, near, far);
+    std::unique_ptr<ColorCamera> camera = std::make_unique<ColorCamera>(uniqueName, resolutionX, resolutionY, hFov, frequency, near, far);
+
+    value = info.nodes.at("rendering").attributes.at("exposure_compensation");
+    if (value.valid)
+        camera->SetExposureCompensation(std::get<Scalar>(value.value));
+
+    return camera;
 }
 
 REGISTER_SENSOR("camera", ColorCamera)

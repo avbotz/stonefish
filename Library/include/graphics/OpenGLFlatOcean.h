@@ -47,6 +47,9 @@ namespace sf
          \param view a pointer to the active view
          */
         void UpdateSurface(OpenGLView* view) override;
+
+        //! A method informing if the surface is shaped by the simulated waves (it is not).
+        bool simulatesWaves() override;
         
         //! A method that draws the surface of the ocean.
         /*!

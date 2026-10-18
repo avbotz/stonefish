@@ -100,7 +100,10 @@ namespace sf
         void BakeShadowmaps(OpenGLPipeline* pipe, OpenGLView* view, bool refracted = false);
         
         //! A method to setup a material shaders.
-        void SetupMaterialShaders();
+        /*!
+         \param sunShadows a flag indicating if the sun casts shadows (from the last baked shadow maps)
+         */
+        void SetupMaterialShaders(bool sunShadows = true);
          
         //! A method to set position of the sun in the sky.
         /*!

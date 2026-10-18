@@ -128,6 +128,13 @@ namespace sf
          */
         void setRipples(Scalar rmsSlope);
 
+        //! A method to set the bottom under the water, which reflects light up (visual effect, e.g. the floor of a pool).
+        /*!
+         \param depth the depth of the bottom below the surface [m]
+         \param albedo the diffuse reflectance of the bottom (0 means no bottom)
+         */
+        void setBottom(Scalar depth, Scalar albedo);
+
         //! A method to enable rendering of suspended particles (underwater snow).
         void SetParticles(bool enabled);
 

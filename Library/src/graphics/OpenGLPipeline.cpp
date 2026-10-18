@@ -88,6 +88,9 @@ OpenGLPipeline::OpenGLPipeline(RenderSettings s, HelperSettings h) : rSettings_(
         cError("Display FBO initialization failed!");
     OpenGLState::BindFramebuffer(0);
     lastSimTime_ = Scalar(-1);
+    causticsDt_ = Scalar(1); //Caustics generated in the first frame
+    windowMinimized_ = false;
+    framesSinceFast_ = 0;
 }
 
 OpenGLPipeline::~OpenGLPipeline()
@@ -127,6 +130,11 @@ SDL_mutex* OpenGLPipeline::GetDrawingQueueMutex()
     return drawingQueueMutex_;
 }
     
+void OpenGLPipeline::setWindowMinimized(bool minimized)
+{
+    windowMinimized_ = minimized;
+}
+
 OpenGLContent* OpenGLPipeline::GetContent()
 {
     return content_.get();
@@ -347,7 +355,7 @@ void OpenGLPipeline::DrawHelpers()
     }
 }
 
-void OpenGLPipeline::Render(SimulationManager* sim)
+bool OpenGLPipeline::Render(SimulationManager* sim, bool onlyIfUpdated)
 {	
     //Update time step for animation purposes
     Scalar now = sim->GetSimulationTime();
@@ -364,33 +372,14 @@ void OpenGLPipeline::Render(SimulationManager* sim)
     if(ocean != nullptr)
     {
         ocean->GetOpenGlOcean()->Simulate(dt);
-        ocean->GetOpenGlOcean()->GenerateCaustics(atm->GetOpenGlAtmosphere()->GetSunDirection(), dt);
+        causticsDt_ += dt;
         renderMode = rSettings_.ocean > RenderQuality::DISABLED && ocean->IsRenderable() ? 1 : 0;
     }
-    OpenGLState::EnableDepthTest();
-    OpenGLState::EnableCullFace();
-    
-    //Bake shadow maps for lights (independent of view)
-    content_->SetupLights();
-    if(rSettings_.shadows > RenderQuality::DISABLED)
-    {
-        glCullFace(GL_FRONT);
-        glDisable(GL_DEPTH_CLAMP);
-        content_->SetDrawingMode(DrawingMode::SHADOW);
-        for(size_t i=0; i<content_->GetLightsCount(); ++i)
-        {
-            if(content_->GetLight(i)->IsActive())
-                content_->GetLight(i)->BakeShadowmap(this);
-        }
-        glEnable(GL_DEPTH_CLAMP);
-        glCullFace(GL_BACK);
-    }
-    
-    //Clear display framebuffer
-    OpenGLState::BindFramebuffer(screenFBO_);
-    glClear(GL_COLOR_BUFFER_BIT);
-
     //Update the queue of views needing update
+    auto frameTime = std::chrono::steady_clock::now();
+    viewQueued_.resize(content_->GetViewsCount());
+    viewRendered_.resize(content_->GetViewsCount());
+    viewPeriod_.resize(content_->GetViewsCount(), 0.0);
     unsigned int updateCount = 0;
     std::vector<unsigned int> viewsNoUpdate; //View that are not needing update but have to be displayed
     std::vector<unsigned int> pairedViews; //Views rendered together with the view they are paired with
@@ -424,6 +413,7 @@ void OpenGLPipeline::Render(SimulationManager* sim)
                 {
                     viewsQueue_.push_back(i);
                     viewsNoUpdate.push_back(i);
+                    viewQueued_[i] = frameTime;
                 }
             }
         }
@@ -434,18 +424,122 @@ void OpenGLPipeline::Render(SimulationManager* sim)
         }
     }
 
+    //One sensor camera is rendered per frame, as they become due, but the fastest one sets the pace: the slower cameras
+    //and the window are rendered right after its frames (in the next call, or in the first half of its period), so that
+    //they do not delay its next one, unless they have waited for maxDelay. While cameras run the window is rendered at
+    //most every windowInterval and at least every windowMaxAge; without them, at most every windowIntervalAlone. A minimized
+    //window is not rendered.
+    constexpr std::chrono::milliseconds maxDelay(60), windowInterval(50), windowIntervalAlone(33), windowMaxAge(200);
+    double fastestPeriod = 0.0;
+    for(size_t i=0; i<viewPeriod_.size(); ++i) //Of the cameras still running
+        if(viewPeriod_[i] > 0.0 && frameTime - viewRendered_[i] < std::chrono::seconds(1)
+           && (fastestPeriod == 0.0 || viewPeriod_[i] < fastestPeriod))
+            fastestPeriod = viewPeriod_[i];
+    auto isFast = [&](unsigned int id) { return fastestPeriod == 0.0 || viewPeriod_[id] <= 1.5 * fastestPeriod; };
+    ++framesSinceFast_;
+    bool inSlot = framesSinceFast_ == 1 || std::chrono::duration<double>(frameTime - lastFastFrame_).count() < 0.5 * fastestPeriod;
+
     if(viewsQueue_.size() > content_->GetViewsCount()) // Safety condition to avoid runaway
     {
         updateCount = viewsQueue_.size();
         viewsNoUpdate.clear();
     }
-    else if(updateCount < (unsigned int)viewsQueue_.size())
+    else
     {
-        ++updateCount;
-        auto it = std::find(viewsNoUpdate.begin(), viewsNoUpdate.end(), viewsQueue_[updateCount-1]);
-        if(it != viewsNoUpdate.end())
-            viewsNoUpdate.erase(std::find(viewsNoUpdate.begin(), viewsNoUpdate.end(), viewsQueue_[updateCount-1]));
+        auto next = std::find_if(viewsQueue_.begin() + updateCount, viewsQueue_.end(), 
+            [&](unsigned int id) { return isFast(id) || inSlot || frameTime - viewQueued_[id] >= maxDelay; });
+        if(next != viewsQueue_.end())
+        {
+            unsigned int id = *next;
+            viewsQueue_.erase(next);
+            viewsQueue_.insert(viewsQueue_.begin() + updateCount, id);
+            ++updateCount;
+            viewsNoUpdate.erase(std::remove(viewsNoUpdate.begin(), viewsNoUpdate.end(), id), viewsNoUpdate.end());
+        }
     }
+
+    bool sensorFrame = std::any_of(viewsQueue_.begin(), viewsQueue_.begin() + updateCount, 
+        [this](unsigned int id) { return content_->GetView(id)->GetType() != ViewType::TRACKBALL; });
+    bool camerasRunning = frameTime - lastSensorFrame_ < windowMaxAge;
+    auto windowAge = frameTime - lastWindowFrame_;
+    bool windowDue = !windowMinimized_ && (camerasRunning ? windowAge >= windowMaxAge || (!sensorFrame && inSlot && windowAge >= windowInterval)
+                                                          : windowAge >= windowIntervalAlone);
+    for(unsigned int i=0; i<updateCount;)
+    {
+        if(content_->GetView(viewsQueue_[i])->GetType() != ViewType::TRACKBALL)
+            ++i;
+        else if(!windowDue)
+        {
+            viewsNoUpdate.push_back(viewsQueue_[i]);
+            viewsQueue_.erase(viewsQueue_.begin() + i);
+            --updateCount;
+        }
+        else
+        {
+            lastWindowFrame_ = frameTime;
+            ++i;
+        }
+    }
+    if(sensorFrame)
+        lastSensorFrame_ = frameTime;
+    //The window's view fills the screen. When it is not rendered, the screen keeps its last image: its render buffers
+    //may have been reused since (the selection outline draws in them), so it cannot be tone mapped again.
+    bool windowKept = std::any_of(viewsNoUpdate.begin(), viewsNoUpdate.end(), 
+        [this](unsigned int id) { return content_->GetView(id)->GetType() == ViewType::TRACKBALL; });
+    for(unsigned int i=0; i<updateCount; ++i)
+    {
+        unsigned int id = viewsQueue_[i];
+        if(content_->GetView(id)->GetType() == ViewType::TRACKBALL)
+            continue;
+        if(viewRendered_[id].time_since_epoch().count() > 0)
+        {
+            double dt = std::chrono::duration<double>(frameTime - viewRendered_[id]).count();
+            viewPeriod_[id] = viewPeriod_[id] > 0.0 ? 0.9 * viewPeriod_[id] + 0.1 * dt : dt;
+        }
+        viewRendered_[id] = frameTime;
+        if(isFast(id))
+        {
+            lastFastFrame_ = frameTime;
+            framesSinceFast_ = 0;
+        }
+    }
+
+    //Nothing new to show
+    if(updateCount == 0 && onlyIfUpdated)
+        return false;
+
+    //Caustics, for the sensor cameras (the window shows the last ones, unless there are no cameras), at most 30 times
+    //per second of simulation: cameras rendered in quick succession share them
+    if(ocean != nullptr && updateCount > 0 && (sensorFrame || frameTime - lastSensorFrame_ > windowMaxAge)
+       && causticsDt_ >= Scalar(1)/Scalar(30))
+    {
+        ocean->GetOpenGlOcean()->GenerateCaustics(atm->GetOpenGlAtmosphere()->GetSunDirection(), causticsDt_);
+        causticsDt_ = Scalar(0);
+    }
+
+    OpenGLState::EnableDepthTest();
+    OpenGLState::EnableCullFace();
+    
+    //Bake shadow maps for lights (independent of view)
+    content_->SetupLights();
+    if(rSettings_.shadows > RenderQuality::DISABLED)
+    {
+        glCullFace(GL_FRONT);
+        glDisable(GL_DEPTH_CLAMP);
+        content_->SetDrawingMode(DrawingMode::SHADOW);
+        for(size_t i=0; i<content_->GetLightsCount(); ++i)
+        {
+            if(content_->GetLight(i)->IsActive())
+                content_->GetLight(i)->BakeShadowmap(this);
+        }
+        glEnable(GL_DEPTH_CLAMP);
+        glCullFace(GL_BACK);
+    }
+    
+    //Clear display framebuffer
+    OpenGLState::BindFramebuffer(screenFBO_);
+    if(!windowKept)
+        glClear(GL_COLOR_BUFFER_BIT);
 
     //Loop through all views -> trackballs, cameras, depth cameras...
     for(unsigned int i=0; i<updateCount; ++i)
@@ -628,13 +722,19 @@ void OpenGLPipeline::Render(SimulationManager* sim)
                         content_->SetDrawingMode(DrawingMode::UNDERWATER);
                         DrawObjects();
                         if(!ocean->HasWaves() && camera->CanSeeWaterSurface()) //Mirror image of the scene on the flat water surface (total internal reflection)
+                        {
+                            //Distorted by the ripples, it does without the sun's shadows, which cost most of its rendering
+                            atm->GetOpenGlAtmosphere()->SetupMaterialShaders(false);
                             camera->RenderWaterReflection(this);
+                            atm->GetOpenGlAtmosphere()->SetupMaterialShaders();
+                        }
                         glOcean->DrawBackground(camera);
                         glOcean->DrawBacksurface(camera);
                         //camera->GenerateBloom();
                         DrawLights();
                         
-                        if(rSettings_.ssr > RenderQuality::DISABLED)
+                        //Without waves the mirror image reflects the scene in the surface, so only reflective looks need SSR
+                        if(rSettings_.ssr > RenderQuality::DISABLED && (ocean->HasWaves() || content_->hasReflectiveLooks()))
                         {
                             //Linear depth front faces
                             camera->GenerateLinearDepth(true);
@@ -694,8 +794,8 @@ void OpenGLPipeline::Render(SimulationManager* sim)
                         //Render sky (left for the end to only fill empty spaces)
                         atm->GetOpenGlAtmosphere()->DrawSkyAndSun(camera);    
 
-                        //Postprocess
-                        if(rSettings_.ssr > RenderQuality::DISABLED)
+                        //Postprocess (the window does without the reflections in the surface, a third of its rendering)
+                        if(rSettings_.ssr > RenderQuality::DISABLED && camera->GetType() != ViewType::TRACKBALL)
                         {
                             //Linear depth front faces
                             camera->GenerateLinearDepth(true);
@@ -791,14 +891,16 @@ void OpenGLPipeline::Render(SimulationManager* sim)
             viewsNoUpdate.push_back(pairedViews[i]);
     }
 
-    //Draw views that are displayed but not updated
+    //Draw views that are displayed but not updated (the window's last image is still on the screen)
     for(size_t i=0; i<viewsNoUpdate.size(); ++i)
     {
         OpenGLView* view = content_->GetView(viewsNoUpdate[i]);
-        view->DrawLDR(screenFBO_, false);
+        if(view->GetType() != ViewType::TRACKBALL)
+            view->DrawLDR(screenFBO_, false);
     }
     //Remove views drawn in this frame
     viewsQueue_.erase(viewsQueue_.begin(), viewsQueue_.begin() + updateCount);
+    return true;
 }
 
 }

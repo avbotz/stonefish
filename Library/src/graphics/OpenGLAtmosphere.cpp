@@ -594,7 +594,7 @@ glm::mat4 OpenGLAtmosphere::BuildCropProjMatrix(ViewFrustum &f)
     return shad_crop_proj;
 }
 
-void OpenGLAtmosphere::SetupMaterialShaders()
+void OpenGLAtmosphere::SetupMaterialShaders(bool sunShadows)
 {
     //Calculate shadow splits
     glm::mat4 bias(0.5f, 0.f, 0.f, 0.f,
@@ -605,15 +605,15 @@ void OpenGLAtmosphere::SetupMaterialShaders()
     GLfloat frustumNear[4];
 
     //For every inactive split
-    for(unsigned int i = sunShadowmapSplits_; i<4; ++i)
+    for(unsigned int i = sunShadows ? sunShadowmapSplits_ : 0; i<4; ++i)
     {
         frustumNear[i] = 0;
         frustumFar[i] = 0;
         sunSkyUBOData_.sunClipSpace[i] = glm::mat4();
     }
 
-    //For every active split
-    for(unsigned int i = 0; i < sunShadowmapSplits_; ++i)
+    //For every active split (without shadows, all fragments are beyond the last split)
+    for(unsigned int i = 0; i < (sunShadows ? sunShadowmapSplits_ : 0); ++i)
     {
         frustumNear[i] = sunShadowFrustum_[i].near;
         frustumFar[i] = sunShadowFrustum_[i].far;

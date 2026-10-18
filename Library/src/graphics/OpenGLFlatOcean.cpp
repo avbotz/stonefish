@@ -200,6 +200,11 @@ OpenGLFlatOcean::~OpenGLFlatOcean()
     glDeleteBuffers(1, &vbo_);
 }
     
+bool OpenGLFlatOcean::SimulatesWaves()
+{
+    return false;
+}
+
 void OpenGLFlatOcean::UpdateSurface(OpenGLView* view)
 {
 }

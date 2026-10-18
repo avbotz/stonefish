@@ -57,6 +57,17 @@
 //Constants
 const float sunLightRadius = 0.05;
 
+const vec2 Poisson16[16] = vec2[](
+    vec2(-0.94201624, -0.39906216), vec2(0.94558609, -0.76890725),
+    vec2(-0.094184101, -0.92938870), vec2(0.34495938, 0.29387760),
+    vec2(-0.91588581, 0.45771432), vec2(-0.81544232, -0.87912464),
+    vec2(-0.38277543, 0.27676845), vec2(0.97484398, 0.75648379),
+    vec2(0.44323325, -0.97511554), vec2(0.53742981, -0.47373420),
+    vec2(-0.26496911, -0.41893023), vec2(0.79197514, 0.19090188),
+    vec2(-0.24188840, 0.99706507), vec2(-0.81409955, 0.91437590),
+    vec2(0.19984126, 0.78641367), vec2(0.14383161, -0.14100790)
+);
+
 const vec2 Poisson25[25] = vec2[](
     vec2(-0.978698, -0.0884121),
     vec2(-0.841121, 0.521165),
@@ -515,11 +526,11 @@ void findBlocker(
 {
     accumBlockerDepth = 0.0;
     numBlockers = 0.0;
-	maxBlockers = 32.0;
+	maxBlockers = 16.0;
 	
-    for (int i = 0; i < 32; ++i)
+    for (int i = 0; i < 16; ++i)
     {
-		vec2 offset = Poisson32[i] * _searchRegionRadiusUV;
+		vec2 offset = Poisson16[i] * _searchRegionRadiusUV;
         float shadowMapDepth = borderDepthTexture(layer, tex, uv + offset);
         float z = biasedZ(z0, dz_duv, offset);
         
@@ -542,13 +553,13 @@ float pcfFilter(
 {
 	float sum = 0.0;
 
-	for (int i = 0; i < 64; ++i)
+	for (int i = 0; i < 16; ++i)
 	{
-		vec2 offset = Poisson64[i] * filterRadiusUV;
+		vec2 offset = Poisson16[i] * filterRadiusUV;
         float z = biasedZ(z0, dz_duv, offset);
         sum += borderPCFTexture(layer, tex, vec3(uv + offset, z));
 	}
-    return sum / 64.0;
+    return sum / 16.0;
 }
 
 //Calculate in-shadow coefficient by sampling shadow edges

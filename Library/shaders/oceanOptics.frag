@@ -135,8 +135,8 @@ float Caustics(vec3 P, vec3 S, float z)
 	//Point where the refracted sun ray reaching P crossed the surface
 	vec2 uv = (P.xy - S.xy/S.z * z)/causticsTileSize;
 	
-	//Maps are computed for depths growing geometrically
-	float layer = clamp(2.0 * log2(max(z, causticsDepth0)/causticsDepth0), 0.0, causticsLayers - 1.0);
+	//Maps are computed for depths growing geometrically, down to the bottom
+	float layer = clamp(2.0 * log2(clamp(z, causticsDepth0, max(waterBottom.x, causticsDepth0))/causticsDepth0), 0.0, causticsLayers - 1.0);
 	float l0 = floor(layer);
 	float l1 = min(l0 + 1.0, causticsLayers - 1.0);
 

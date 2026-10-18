@@ -64,6 +64,11 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - *In-scattering of the sun light is no longer multiplied by 10 (the in-scattering of the diffuse light replaces it)*
 - Added exposure compensation of the color camera to the parser (``exposure_compensation``)
 - Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
+- The graphical app can render on demand (``renderOnDemand_``): a frame is drawn only when a view is due or there was input
+- Sensor cameras are rendered as they become due, paced by the fastest one: slower cameras and the window are rendered right after its frames, and the window at most every 50 ms while cameras run
+- Caustics computed only for the frames rendering cameras, at most 30 times per second, down to the bottom, on a coarser grid
+- Flat ocean no longer simulates the waves; screen-space reflections under a flat surface only for reflective looks; mirror image of the scene in the surface rendered without sun shadows; fewer samples in soft shadows
+- The window is rendered at most every 33 ms when no camera runs, not at all while minimized, and without screen-space reflections above the surface; caustics maps of 512x512 texels
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)
 
 1.5

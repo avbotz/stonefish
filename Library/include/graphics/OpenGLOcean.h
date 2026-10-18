@@ -33,10 +33,10 @@
 #define MAX_RIPPLE_WAVES 32
 #define RIPPLE_TILE_SIZE 2.5f
 #define RIPPLE_TEX_SIZE 512
-#define CAUSTICS_TEX_SIZE 768
+#define CAUSTICS_TEX_SIZE 512
 #define CAUSTICS_LAYERS 12
 #define CAUSTICS_DEPTH0 0.25f
-#define CAUSTICS_GRID_SIZE 384
+#define CAUSTICS_GRID_SIZE 192
 
 namespace sf
 {
@@ -92,6 +92,9 @@ namespace sf
 		 \param dt time since last update
 		 */
         virtual void Simulate(GLfloat dt);
+
+        //! A method informing if the surface is shaped by the simulated waves (a flat one only uses the capillary ripples).
+        virtual bool SimulatesWaves();
         
         //! A method that updates the wave mesh.
         /*!
@@ -270,6 +273,7 @@ namespace sf
         
     protected:
         virtual void InitializeSimulation();
+        void SimulateWaves(GLfloat dt);
         float Sqr(float x);
         
         std::map<OpenGLView*, std::shared_ptr<OpenGLOceanParticles>> oceanParticles_;

@@ -517,7 +517,9 @@ void OpenGLOcean::GenerateCaustics(glm::vec3 sunDirection, GLfloat dt)
         oceanShaders_["caustics"]->SetUniform("tileSize", RIPPLE_TILE_SIZE);
         oceanShaders_["caustics"]->SetUniform("mapSize", (GLfloat)CAUSTICS_TEX_SIZE);
         OpenGLState::BindVertexArray(causticsVAO_);
-        for(GLint i=0; i<CAUSTICS_LAYERS; ++i)
+        //Only the maps down to the bottom are ever looked up
+        GLint layers = glm::clamp((GLint)floorf(2.f * log2f(glm::max(bottom_.x, CAUSTICS_DEPTH0)/CAUSTICS_DEPTH0)) + 2, 2, CAUSTICS_LAYERS);
+        for(GLint i=0; i<layers; ++i)
         {
             //Grid extended by the maximum expected displacement of the refracted light (light from the neighbouring tiles)
             GLfloat depth = CAUSTICS_DEPTH0 * powf(2.f, 0.5f * (GLfloat)i);
@@ -656,7 +658,12 @@ void OpenGLOcean::InitializeSimulation()
     OpenGLState::BindFramebuffer(0);    
 }
 
-void OpenGLOcean::Simulate(GLfloat dt)
+bool OpenGLOcean::SimulatesWaves()
+{
+    return true;
+}
+
+void OpenGLOcean::SimulateWaves(GLfloat dt)
 {	
     OpenGLState::DisableDepthTest();
     OpenGLState::DisableCullFace();
@@ -740,6 +747,14 @@ void OpenGLOcean::Simulate(GLfloat dt)
     OpenGLState::EnableCullFace();
     
     OpenGLState::BindVertexArray(0);
+}
+
+void OpenGLOcean::Simulate(GLfloat dt)
+{
+    if(SimulatesWaves())
+        SimulateWaves(dt);
+    else
+        params_.t += dt;
     
     //Update currents uniform buffer
     glBindBuffer(GL_UNIFORM_BUFFER, oceanCurrentsUBO_);

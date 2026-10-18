@@ -1440,6 +1440,11 @@ const Look& OpenGLContent::GetLook(size_t id)
         
     return looks_[id];
 }
+
+bool OpenGLContent::HasReflectiveLooks()
+{
+    return std::any_of(looks_.begin(), looks_.end(), [](const Look& l) { return l.reflectivity > 0.f; });
+}
     
 //Static methods
 GLuint OpenGLContent::LoadTexture(std::string_view filename, bool srgb, bool alpha, GLfloat anisotropy, bool internal)

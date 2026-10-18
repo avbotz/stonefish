@@ -229,6 +229,16 @@ namespace sf
          */
         GLfloat GetWaterTemperature();
 
+        //! A method to set the bottom under the water, which reflects light up (e.g. the floor of a pool).
+        /*!
+         \param depth the depth of the bottom below the surface [m]
+         \param albedo the diffuse reflectance of the bottom (0 means no bottom)
+         */
+        void SetBottom(GLfloat depth, GLfloat albedo);
+
+        //! A method returning the depth of the bottom [m] and its albedo.
+        glm::vec2 GetBottom();
+
         //! A method to set if the particles should be rendered.
         /*!
          \param enabled a flag specifying if the particles should be rendered
@@ -271,6 +281,7 @@ namespace sf
         glm::vec3 lightAbsorption_;
         glm::vec3 lightScattering_;
         GLfloat waterTemperature_;
+        glm::vec2 bottom_;
 
         std::unordered_map<std::string, std::unique_ptr<GLSLShader>> oceanShaders_;
         GLuint oceanFBOs_[3];

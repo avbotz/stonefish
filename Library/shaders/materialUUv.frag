@@ -55,6 +55,8 @@ vec3 SunContributionDir(vec3 P, vec3 N, vec3 toEye, vec3 albedo, vec3 illuminanc
 vec3 AmbientShadingModel(vec3 N, vec3 V, vec3 E, vec3 albedo);
 vec3 SunIlluminanceInWater(vec3 Eh, vec3 sunDir, vec3 S);
 vec3 SkyIlluminanceInWater(vec3 Eh, vec3 N);
+vec3 DiffuseIlluminanceInWater(vec3 Esun, vec3 Esky, vec3 sunDir, vec3 S, vec3 N, float z);
+vec3 InScatteringDiffuse(vec3 Esun, vec3 Esky, vec3 sunDir, vec3 S, vec3 V, float z, float d);
 float Caustics(vec3 P, vec3 S, float z);
 vec3 RefractToWater(vec3 I, vec3 N);
 vec3 RefractToAir(vec3 I, vec3 N);
@@ -109,8 +111,8 @@ void main()
 	vec3 skyIlluminance;
 	vec3 sunIlluminance = GetSunAndSkyIlluminance(posSky - center, waterSurfaceN, sunDirection, skyIlluminance);
 
-	//Ambient (sky light transmitted through the surface)
-	fragColor.rgb = AmbientShadingModel(N, V, SkyIlluminanceInWater(skyIlluminance, N), albedo.rgb) * BeerLambert(dw + depth);
+	//Ambient (diffuse light in water: the sky's and the light reflected by the bottom)
+	fragColor.rgb = AmbientShadingModel(N, V, DiffuseIlluminanceInWater(sunIlluminance, skyIlluminance, sunDirection, S, N, depth), albedo.rgb) * BeerLambert(dw);
 	
 	//Sun (refracted at the surface)
 	if(S.z > 0.0)
@@ -140,6 +142,7 @@ void main()
 	    vec3 L = sunIlluminance/whitePoint;
 	    fragColor.rgb += InScatteringSun(L, S, -V, max(eyePos.z, 0.0), dw);
     }
+    fragColor.rgb += InScatteringDiffuse(sunIlluminance, skyIlluminance, sunDirection, S, -V, max(eyePos.z, 0.0), dw)/whitePoint;
 
 	//3. In-scattering from point lights
 	for(int i=0; i<numPointLights; ++i)

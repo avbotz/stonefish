@@ -123,6 +123,12 @@ void Ocean::SetRipples(Scalar rmsSlope)
         glOcean_->SetRipples((float)rmsSlope);
 }
 
+void Ocean::SetBottom(Scalar depth, Scalar albedo)
+{
+    if(glOcean_ != nullptr)
+        glOcean_->SetBottom((float)depth, (float)albedo);
+}
+
 void Ocean::SetParticles(bool enabled)
 {
     if(glOcean_ != nullptr)

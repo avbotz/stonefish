@@ -42,6 +42,7 @@ The changelog of the library code is presented below. **Breaking changes** were 
 - Fixed crash on exit caused by detached threads of the physics thread pool, and by OpenGL resources released after the graphics context was destroyed
 - Fixed friction coefficients used for undefined material pairs
 - Fixed aerodynamic drag (linear instead of quadratic)
+- Added exposure compensation of the color camera to the parser (``exposure_compensation``)
 - Fixed the index count of the drawn meshes (four times too many indices were drawn, read beyond the index buffers)
 - Fixed shaders of the ocean surface failing to link with some drivers (transparent surface)
 

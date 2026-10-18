@@ -192,12 +192,16 @@ namespace sf
         void Init();
         void LoopInternal();
         void CleanUp();
+
+        //! When set, LoopInternal() draws and swaps the window only when a view was rendered or there was input
+        //! (for an app that calls it at a high rate, to pick up sensor cameras as soon as they are due).
+        bool renderOnDemand_;
         
         virtual void InitializeGUI();
         
     private:
         void InitializeSDL();
-        void RenderLoop();
+        bool RenderLoop();
         
         SDL_GLContext glMainContext_;
         SDL_GLContext glLoadingContext_;
@@ -226,6 +230,7 @@ namespace sf
         double drawingTime_;
         double maxDrawingTime_;
         double fps_;
+        bool redraw_;
         int maxCounter_;
         int windowW_;
         int windowH_;

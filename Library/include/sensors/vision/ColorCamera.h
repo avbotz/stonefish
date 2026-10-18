@@ -112,6 +112,7 @@ namespace sf
         
         OpenGLRealCamera* glCamera_;
         glm::vec2 depthRange_;
+        Scalar exposureComp_;
         GLubyte* imageData_;
         std::function<void(ColorCamera*)> newDataCallback_;
     };

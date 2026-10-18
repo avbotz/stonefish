@@ -21,6 +21,7 @@
 
 uniform vec3 cWater;
 uniform vec3 bWater;
+uniform vec2 waterBottom; //Depth of the bottom [m], its albedo (0 if there is no bottom)
 uniform sampler2DArray texCaustics;
 
 const float water2air = 1.33/1.0;
@@ -30,7 +31,7 @@ const vec3 waterRayleigh = vec3(0.15023, 0.405565, 1.0);
 const float r2 = 9.0;
 const float deltaMin = 0.025;
 const int nMax = 64;
-const float Sfactor = 10.0;
+const float Sfactor = 10.0; //Boost of the in-scattering of point and spot lights
 
 //Caustics map (keep in sync with OpenGLOcean.h)
 const float causticsTileSize = 2.5;
@@ -134,8 +135,8 @@ float Caustics(vec3 P, vec3 S, float z)
 	//Point where the refracted sun ray reaching P crossed the surface
 	vec2 uv = (P.xy - S.xy/S.z * z)/causticsTileSize;
 	
-	//Maps are computed for depths growing geometrically
-	float layer = clamp(2.0 * log2(max(z, causticsDepth0)/causticsDepth0), 0.0, causticsLayers - 1.0);
+	//Maps are computed for depths growing geometrically, down to the bottom
+	float layer = clamp(2.0 * log2(clamp(z, causticsDepth0, max(waterBottom.x, causticsDepth0))/causticsDepth0), 0.0, causticsLayers - 1.0);
 	float l0 = floor(layer);
 	float l1 = min(l0 + 1.0, causticsLayers - 1.0);
 
@@ -168,6 +169,77 @@ vec3 SkyIlluminanceInWater(vec3 Eh, vec3 N)
 }
 
 /*
+    Diffuse light under the water surface, for water with a flat bottom that reflects light diffusely
+    (a pool). The bottom reflects the sun and sky light reaching it and the surface reflects much of
+    that back down (mostly by total internal reflection), so in a shallow pool with a light bottom
+    this light, not the sky, is what lights shadows and any surface facing sideways or down.
+    Two streams: the light going down and the light going up each have uniform radiance over their
+    hemisphere and are horizontally uniform, so the irradiances are, at depth z:
+        down(z) = Edown0 * exp(-c * z),   up(z) = Eup * exp(-c * (D - z))
+    \param Esun illuminance of the sun on a horizontal plane just above the surface
+    \param Esky illuminance of the sky on a horizontal plane just above the surface
+    \param sunDir direction towards the sun (in air)
+    \param S direction of propagation of the refracted sun light
+    \param Edown0 diffuse irradiance of a horizontal plane facing up, just below the surface
+    \param Eup irradiance of a horizontal plane facing down, just above the bottom
+*/
+void DiffuseLightInWater(vec3 Esun, vec3 Esky, vec3 sunDir, vec3 S, out vec3 Edown0, out vec3 Eup)
+{
+    const float surfaceReflectance = 0.48; //Of a flat water surface, for diffuse light from below
+    float depth = waterBottom.x;
+    float albedo = waterBottom.y;
+    vec3 Tbottom = BeerLambert(depth);
+
+    vec3 Esky0 = SkyIlluminanceInWater(Esky, vec3(0.0, 0.0, -1.0));
+    vec3 Esun0 = S.z > 0.0 ? SunIlluminanceInWater(Esun, sunDir, S) * S.z : vec3(0.0);
+    //Irradiance of the bottom, with the light reflected back and forth between the bottom and the surface
+    vec3 Ebottom = (Esun0 * BeerLambert(depth/max(S.z, 0.01)) + Esky0 * Tbottom)
+                    / (1.0 - surfaceReflectance * albedo * Tbottom * Tbottom);
+    Eup = albedo * Ebottom;
+    Edown0 = Esky0 + surfaceReflectance * Eup * Tbottom;
+}
+
+/*
+    Irradiance of a surface with normal N at depth z, by the diffuse light in water (see DiffuseLightInWater).
+*/
+vec3 DiffuseIlluminanceInWater(vec3 Esun, vec3 Esky, vec3 sunDir, vec3 S, vec3 N, float z)
+{
+    vec3 Edown0, Eup;
+    DiffuseLightInWater(Esun, Esky, sunDir, S, Edown0, Eup);
+    z = clamp(z, 0.0, waterBottom.x);
+    return Edown0 * BeerLambert(z) * 0.5 * (1.0 - N.z) + Eup * BeerLambert(waterBottom.x - z) * 0.5 * (1.0 + N.z);
+}
+
+//(1 - exp(-k * d))/k, which tends to d as k goes to 0
+vec3 PathIntegral(vec3 k, float d)
+{
+    return mix((vec3(1.0) - exp(-k * d))/max(k, vec3(1e-6)), vec3(d), lessThan(k * d, vec3(1e-4)));
+}
+
+/*
+    In-scattering of the diffuse light in water (see DiffuseLightInWater) along a view ray.
+    Scattering in water is strongly forward, so light reaching the eye along -V comes mostly from the
+    hemisphere behind the scattering point: the light going up when looking down and the other way round.
+    \param V view ray direction (from the eye)
+    \param z depth of the eye (or of the point where the ray enters the water)
+    \param d length of the ray in water
+*/
+vec3 InScatteringDiffuse(vec3 Esun, vec3 Esky, vec3 sunDir, vec3 S, vec3 V, float z, float d)
+{
+    vec3 Edown0, Eup;
+    DiffuseLightInWater(Esun, Esky, sunDir, S, Edown0, Eup);
+    z = clamp(z, 0.0, waterBottom.x);
+    //The light is only there between the surface and the bottom
+    if(V.z > 1e-4)
+        d = min(d, (waterBottom.x - z)/V.z);
+    else if(V.z < -1e-4)
+        d = min(d, z/(-V.z));
+    vec3 Ldown = Edown0/PI * BeerLambert(z) * PathIntegral(cWater * (1.0 + V.z), d);
+    vec3 Lup = Eup/PI * BeerLambert(waterBottom.x - z) * PathIntegral(cWater * (1.0 - V.z), d);
+    return bWater * (0.5 * (1.0 - V.z) * Ldown + 0.5 * (1.0 + V.z) * Lup);
+}
+
+/*
     \param D light direction
     \param V view ray direction
 */
@@ -187,7 +259,7 @@ vec3 VSF(vec3 D, vec3 V)
 */
 vec3 InScatteringSun(vec3 L, vec3 D, vec3 V, float z, float d)
 {   
-    return Sfactor * L * VSF(D,V)/(cWater*(V.z/D.z+1.0)) * exp(-cWater*z/D.z) * (1.0 - exp(-cWater*d*(V.z/D.z+1.0)));
+    return L * VSF(D,V)/(cWater*(V.z/D.z+1.0)) * exp(-cWater*z/D.z) * (1.0 - exp(-cWater*d*(V.z/D.z+1.0)));
 }
 
 /*

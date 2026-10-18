@@ -76,6 +76,8 @@ GraphicalSimulationApp::GraphicalSimulationApp(std::string_view title, std::stri
     timeQueryPingpong_ = 0;
     drawingTime_ = 0.0;
     fps_ = 0.0;
+    redraw_ = true;
+    renderOnDemand_ = false;
     maxDrawingTime_ = 0.0;
     maxCounter_ = 0;
     rSettings_ = r;
@@ -332,6 +334,16 @@ void GraphicalSimulationApp::WindowEvent(SDL_Event* event)
             SDL_GetWindowSize(window_, &w, &h);
             gui_->Resize(w, h);
             break;
+
+        case SDL_WINDOWEVENT_MINIMIZED:
+        case SDL_WINDOWEVENT_HIDDEN:
+            glPipeline_->setWindowMinimized(true);
+            break;
+
+        case SDL_WINDOWEVENT_RESTORED:
+        case SDL_WINDOWEVENT_SHOWN:
+            glPipeline_->setWindowMinimized(false);
+            break;
     }
 }
 
@@ -453,9 +465,11 @@ void GraphicalSimulationApp::LoopInternal()
 {
     SDL_Event event;
     SDL_FlushEvents(SDL_FINGERDOWN, SDL_MULTIGESTURE);
+    redraw_ = state_ != SimulationState::RUNNING;
             
     while(SDL_PollEvent(&event))
     {
+        redraw_ = true;
         switch(event.type)
         {
             case SDL_WINDOWEVENT:
@@ -570,7 +584,8 @@ void GraphicalSimulationApp::LoopInternal()
     }
     
     ProcessInputs();
-    RenderLoop();
+    if(!RenderLoop())
+        return;
     
     //workaround for checking if IMGUI is being manipulated
     if(mouseWasDown_.type == SDL_MOUSEBUTTONDOWN && !gui_->IsAnyActive())
@@ -604,7 +619,7 @@ void GraphicalSimulationApp::LoopInternal()
 	fps_ = f*(1.0/dt) + (1.0-f)*fps_;
 }
 
-void GraphicalSimulationApp::RenderLoop()
+bool GraphicalSimulationApp::RenderLoop()
 {
     //Do some updates
     if(state_ != SimulationState::RUNNING)
@@ -614,7 +629,11 @@ void GraphicalSimulationApp::RenderLoop()
     
     //Rendering
     glBeginQuery(GL_TIME_ELAPSED, timeQuery_[timeQueryPingpong_]);
-    glPipeline_->Render(GetSimulationManager());
+    if(!glPipeline_->Render(GetSimulationManager(), renderOnDemand_ && !redraw_)) //Nothing new: the last frame stays on screen
+    {
+        glEndQuery(GL_TIME_ELAPSED);
+        return false;
+    }
     glPipeline_->DrawDisplay();
     
     //GUI & Console
@@ -662,6 +681,7 @@ void GraphicalSimulationApp::RenderLoop()
 
     //glFinish(); //Ensure that the frame was fully rendered
     SDL_GL_SwapWindow(window_);
+    return true;
 }
 
 void GraphicalSimulationApp::DoHUD()

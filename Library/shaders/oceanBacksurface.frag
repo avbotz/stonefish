@@ -57,6 +57,7 @@ vec3 RefractToAir(vec3 I, vec3 N);
 vec3 BeerLambert(float d);
 float FresnelDielectric(float cosi, float n1, float n2);
 vec3 InScatteringSun(vec3 L, vec3 D, vec3 V, float z, float d);
+vec3 InScatteringDiffuse(vec3 Esun, vec3 Esky, vec3 sunDir, vec3 S, vec3 V, float z, float d);
 vec3 InScatteringPointLight(vec3 O, vec3 L, vec3 X, vec3 V, vec3 P, float d, float dw);
 vec3 InScatteringSpotLight(vec3 O, vec3 D, float w, float fn, vec3 L, vec3 X, vec3 V, vec3 P, float d, float dw);
 
@@ -117,6 +118,8 @@ void main()
 	vec3 Lwater = vec3(0.0);
 	if(fresnel > 0.0 && S.z > 0.0 && sunDirection.z < 0.0)
 		Lwater = InScatteringSun(sunIlluminance/whitePoint, S, reflect(-V, normal), 0.0, 1000.0);
+	if(fresnel > 0.0)
+		Lwater += InScatteringDiffuse(sunIlluminance, skyIlluminance, sunDirection, S, reflect(-V, normal), 0.0, 1000.0)/whitePoint;
 	if(fresnel > 0.0 && reflectionEnabled > 0.5)
 	{
 		//Reflected ray deviates twice as much as the normal of the rippled surface
@@ -136,6 +139,7 @@ void main()
     //In-scattering
     if(S.z > 0.0 && sunDirection.z < 0.0)
 	    fragColor += InScatteringSun(sunIlluminance/whitePoint, S, -V, max(eyePos.z, 0.0), dw);
+    fragColor += InScatteringDiffuse(sunIlluminance, skyIlluminance, sunDirection, S, -V, max(eyePos.z, 0.0), dw)/whitePoint;
     
     //In-scattering from point lights
 	for(int i=0; i<numPointLights; ++i)

@@ -27,6 +27,7 @@
 
 #include <SDL2/SDL_thread.h>
 #include <deque>
+#include <chrono>
 #include "StonefishCommon.h"
 #include "graphics/OpenGLDataStructs.h"
 
@@ -53,8 +54,10 @@ namespace sf
         //! A method that constitutes the main rendering pipeline.
         /*!
          \param sim a pointer to the simulation manager
+         \param onlyIfUpdated a flag to skip the frame when no view needs to be rendered
+         \return false if the frame was skipped
          */
-        void Render(SimulationManager* sim);
+        bool Render(SimulationManager* sim, bool onlyIfUpdated = false);
         
         //! A method to add renderable objects to the rendering queue.
         /*!
@@ -106,6 +109,9 @@ namespace sf
         
         //! A method returning a pointer to the OpenGL content manager.
         OpenGLContent* GetContent();
+
+        //! A method informing the pipeline that the window is minimized, so that its view need not be rendered.
+        void setWindowMinimized(bool minimized);
         
     private:
         void PerformDrawingQueueCopy(SimulationManager* sim);
@@ -123,5 +129,14 @@ namespace sf
         GLuint screenTex_;
         std::unique_ptr<OpenGLContent> content_;
         Scalar lastSimTime_;
+        Scalar causticsDt_;
+        std::chrono::steady_clock::time_point lastWindowFrame_;
+        std::chrono::steady_clock::time_point lastSensorFrame_;
+        std::chrono::steady_clock::time_point lastFastFrame_;
+        unsigned int framesSinceFast_; //Calls to Render() since the fastest camera was rendered
+        bool windowMinimized_;
+        std::vector<std::chrono::steady_clock::time_point> viewQueued_; //When each view became due
+        std::vector<std::chrono::steady_clock::time_point> viewRendered_; //When each view was last rendered
+        std::vector<double> viewPeriod_; //Average time between renders of each sensor view [s]
     };
 }

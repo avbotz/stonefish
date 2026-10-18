@@ -33,10 +33,10 @@
 #define MAX_RIPPLE_WAVES 32
 #define RIPPLE_TILE_SIZE 2.5f
 #define RIPPLE_TEX_SIZE 512
-#define CAUSTICS_TEX_SIZE 768
+#define CAUSTICS_TEX_SIZE 512
 #define CAUSTICS_LAYERS 12
 #define CAUSTICS_DEPTH0 0.25f
-#define CAUSTICS_GRID_SIZE 384
+#define CAUSTICS_GRID_SIZE 192
 
 namespace sf
 {
@@ -92,6 +92,9 @@ namespace sf
 		 \param dt time since last update
 		 */
         virtual void Simulate(GLfloat dt);
+
+        //! A method informing if the surface is shaped by the simulated waves (a flat one only uses the capillary ripples).
+        virtual bool simulatesWaves();
         
         //! A method that updates the wave mesh.
         /*!
@@ -229,6 +232,16 @@ namespace sf
          */
         GLfloat GetWaterTemperature();
 
+        //! A method to set the bottom under the water, which reflects light up (e.g. the floor of a pool).
+        /*!
+         \param depth the depth of the bottom below the surface [m]
+         \param albedo the diffuse reflectance of the bottom (0 means no bottom)
+         */
+        void setBottom(GLfloat depth, GLfloat albedo);
+
+        //! A method returning the depth of the bottom [m] and its albedo.
+        glm::vec2 getBottom();
+
         //! A method to set if the particles should be rendered.
         /*!
          \param enabled a flag specifying if the particles should be rendered
@@ -260,6 +273,7 @@ namespace sf
         
     protected:
         virtual void InitializeSimulation();
+        void SimulateWaves(GLfloat dt);
         float Sqr(float x);
         
         std::map<OpenGLView*, std::shared_ptr<OpenGLOceanParticles>> oceanParticles_;
@@ -271,6 +285,7 @@ namespace sf
         glm::vec3 lightAbsorption_;
         glm::vec3 lightScattering_;
         GLfloat waterTemperature_;
+        glm::vec2 bottom_;
 
         std::unordered_map<std::string, std::unique_ptr<GLSLShader>> oceanShaders_;
         GLuint oceanFBOs_[3];

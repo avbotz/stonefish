@@ -675,6 +675,19 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         }
         sm_->GetOcean()->setCaustics(caustics);
 
+        //Bottom reflecting light up, e.g. the floor of a pool
+        if((item = ocean->FirstChildElement("bottom")) != nullptr)
+        {
+            Scalar bottomDepth, bottomAlbedo;
+            if(item->QueryAttribute("depth", &bottomDepth) != XML_SUCCESS
+               || item->QueryAttribute("albedo", &bottomAlbedo) != XML_SUCCESS)
+            {
+                log.Print(MessageType::ERROR, "Ocean bottom not properly defined!");
+                return false;
+            }
+            sm_->GetOcean()->setBottom(bottomDepth, bottomAlbedo);
+        }
+
         //Currents
         if((item = ocean->FirstChildElement("current")) != nullptr)
         {

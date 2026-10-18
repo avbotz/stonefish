@@ -283,12 +283,14 @@ OpenGLContent::OpenGLContent()
         ms.shaders["plain_underwater"] = std::make_unique<GLSLShader>(precompiled);
         ms.shaders["plain_underwater"]->AddUniform("cWater", ParameterType::VEC3);
         ms.shaders["plain_underwater"]->AddUniform("bWater", ParameterType::VEC3);
+        ms.shaders["plain_underwater"]->AddUniform("waterBottom", ParameterType::VEC2);
         
         precompiled.pop_back();
         precompiled.push_back(oceanWavesFragment);
         ms.shaders["plain_underwater_waves"] = std::make_unique<GLSLShader>(precompiled);
         ms.shaders["plain_underwater_waves"]->AddUniform("cWater", ParameterType::VEC3);
         ms.shaders["plain_underwater_waves"]->AddUniform("bWater", ParameterType::VEC3);
+        ms.shaders["plain_underwater_waves"]->AddUniform("waterBottom", ParameterType::VEC2);
         ms.shaders["plain_underwater_waves"]->AddUniform("texWaveFFT", ParameterType::INT);
         ms.shaders["plain_underwater_waves"]->AddUniform("gridSizes", ParameterType::VEC4);
         
@@ -326,6 +328,7 @@ OpenGLContent::OpenGLContent()
         ms.shaders["textured_underwater"]->AddUniform("enableNormalTex", ParameterType::BOOLEAN);
         ms.shaders["textured_underwater"]->AddUniform("cWater", ParameterType::VEC3);
         ms.shaders["textured_underwater"]->AddUniform("bWater", ParameterType::VEC3);
+        ms.shaders["textured_underwater"]->AddUniform("waterBottom", ParameterType::VEC2);
         
         precompiled.pop_back();
         precompiled.push_back(oceanWavesFragment);
@@ -336,6 +339,7 @@ OpenGLContent::OpenGLContent()
         ms.shaders["textured_underwater_waves"]->AddUniform("enableNormalTex", ParameterType::BOOLEAN);
         ms.shaders["textured_underwater_waves"]->AddUniform("cWater", ParameterType::VEC3);
         ms.shaders["textured_underwater_waves"]->AddUniform("bWater", ParameterType::VEC3);
+        ms.shaders["textured_underwater_waves"]->AddUniform("waterBottom", ParameterType::VEC2);
         ms.shaders["textured_underwater_waves"]->AddUniform("texWaveFFT", ParameterType::INT);
         ms.shaders["textured_underwater_waves"]->AddUniform("gridSizes", ParameterType::VEC4);
 
@@ -364,6 +368,7 @@ OpenGLContent::OpenGLContent()
         ms.shaders["cable_textured_underwater"]->AddUniform("enableNormalTex", ParameterType::BOOLEAN);
         ms.shaders["cable_textured_underwater"]->AddUniform("cWater", ParameterType::VEC3);
         ms.shaders["cable_textured_underwater"]->AddUniform("bWater", ParameterType::VEC3);
+        ms.shaders["cable_textured_underwater"]->AddUniform("waterBottom", ParameterType::VEC2);
         ms.shaders["cable_textured_underwater"]->AddUniform("cableRadius", ParameterType::FLOAT);
 
         precompiled.pop_back();
@@ -375,6 +380,7 @@ OpenGLContent::OpenGLContent()
         ms.shaders["cable_textured_underwater_waves"]->AddUniform("enableNormalTex", ParameterType::BOOLEAN);
         ms.shaders["cable_textured_underwater_waves"]->AddUniform("cWater", ParameterType::VEC3);
         ms.shaders["cable_textured_underwater_waves"]->AddUniform("bWater", ParameterType::VEC3);
+        ms.shaders["cable_textured_underwater_waves"]->AddUniform("waterBottom", ParameterType::VEC2);
         ms.shaders["cable_textured_underwater_waves"]->AddUniform("texWaveFFT", ParameterType::INT);
         ms.shaders["cable_textured_underwater_waves"]->AddUniform("gridSizes", ParameterType::VEC4);
         ms.shaders["cable_textured_underwater_waves"]->AddUniform("cableRadius", ParameterType::FLOAT);
@@ -493,6 +499,7 @@ OpenGLContent::OpenGLContent()
     basicShaders_["light_source1"] = std::make_unique<GLSLShader>(sources, commonLightShaders);
     basicShaders_["light_source1"]->AddUniform("cWater", ParameterType::VEC3);
     basicShaders_["light_source1"]->AddUniform("bWater", ParameterType::VEC3);
+    basicShaders_["light_source1"]->AddUniform("waterBottom", ParameterType::VEC2);
     
     //Add common uniforms
     std::array<std::string, 2> lightSourceShaders = {"light_source0", "light_source1"};
@@ -880,7 +887,7 @@ void OpenGLContent::DrawObject(int objectId, int lookId, const glm::mat4& M)
     }
 
     OpenGLState::BindVertexArray(objects_[objectId].vao);
-    glDrawElements(GL_TRIANGLES, sizeof(Face) * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, 3 * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
     OpenGLState::BindVertexArray(0);
 }
 
@@ -918,10 +925,11 @@ void OpenGLContent::DrawLightSource(unsigned int lightId)
             Ocean* ocean = SimulationApp::GetApp()->GetSimulationManager()->GetOcean();
             shader->SetUniform("cWater", ocean->GetOpenGlOcean()->GetLightAttenuation());
             shader->SetUniform("bWater", ocean->GetOpenGlOcean()->GetLightScattering());
+            shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->getBottom());
         }
 
         OpenGLState::BindVertexArray(objects_[objectId].vao);
-        glDrawElements(GL_TRIANGLES, sizeof(Face) * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, 3 * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
         OpenGLState::BindVertexArray(0);
     }
     else
@@ -1136,6 +1144,7 @@ void OpenGLContent::UseLook(const Look& look, bool texturable, const glm::mat4& 
     {
         shader->SetUniform("cWater", ocean->GetOpenGlOcean()->GetLightAttenuation());
         shader->SetUniform("bWater", ocean->GetOpenGlOcean()->GetLightScattering());
+        shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->getBottom());
         if(waves)
         {
             OpenGLState::BindTexture(TEX_POSTPROCESS1, GL_TEXTURE_2D_ARRAY, ocean->GetOpenGlOcean()->GetWaveTexture());
@@ -1262,6 +1271,7 @@ void OpenGLContent::UseCableLook(const Look& look, GLfloat radius)
     {
         shader->SetUniform("cWater", ocean->GetOpenGlOcean()->GetLightAttenuation());
         shader->SetUniform("bWater", ocean->GetOpenGlOcean()->GetLightScattering());
+        shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->getBottom());
         if(waves)
         {
             OpenGLState::BindTexture(TEX_POSTPROCESS1, GL_TEXTURE_2D_ARRAY, ocean->GetOpenGlOcean()->GetWaveTexture());
@@ -1429,6 +1439,11 @@ const Look& OpenGLContent::GetLook(size_t id)
         return looks_[0];
         
     return looks_[id];
+}
+
+bool OpenGLContent::hasReflectiveLooks()
+{
+    return std::any_of(looks_.begin(), looks_.end(), [](const Look& l) { return l.reflectivity > 0.f; });
 }
     
 //Static methods

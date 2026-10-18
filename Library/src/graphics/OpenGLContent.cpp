@@ -850,7 +850,7 @@ void OpenGLContent::DrawObject(int objectId, int lookId, const glm::mat4& M)
     }
 
     OpenGLState::BindVertexArray(objects_[objectId].vao);
-    glDrawElements(GL_TRIANGLES, sizeof(Face) * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, 3 * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
     OpenGLState::BindVertexArray(0);
 }
 
@@ -891,7 +891,7 @@ void OpenGLContent::DrawLightSource(unsigned int lightId)
         }
 
         OpenGLState::BindVertexArray(objects_[objectId].vao);
-        glDrawElements(GL_TRIANGLES, sizeof(Face) * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, 3 * objects_[objectId].faceCount, GL_UNSIGNED_INT, 0);
         OpenGLState::BindVertexArray(0);
     }
     else

@@ -100,7 +100,7 @@ namespace sf
 
         //! The pixel value of ocean particles (marine snow), which belong to no object.
         /*!
-         Other pixel values index SimulationManager::getSegmentationLabels(), with 0 being the background.
+         Other pixel values index SimulationManager::GetSegmentationLabels(), with 0 being the background.
          */
         static constexpr unsigned short OCEAN_PARTICLES_ID = 65534;
 

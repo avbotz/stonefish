@@ -68,10 +68,10 @@ bool Camera::GetDisplayOnScreen(unsigned int& x, unsigned int& y, float& scale) 
     return screen_;
 }
 
-Scalar Camera::getLastCaptureTime() const
+Scalar Camera::GetLastCaptureTime() const
 {
     OpenGLView* v = GetOpenGlView();
-    return v ? Scalar(v->getCaptureTime()) : Scalar(0);
+    return v ? Scalar(v->GetCaptureTime()) : Scalar(0);
 }
 
 void Camera::UpdateTransform()

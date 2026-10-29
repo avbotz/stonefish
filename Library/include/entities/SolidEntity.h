@@ -124,7 +124,7 @@ namespace sf
         static Scalar SkinFrictionCoefficient(Ocean* ocn, Scalar speed, Scalar length);
         
         //! A method returning the characteristic length of the body, used to compute the Reynolds number.
-        virtual Scalar getCharacteristicLength() const;
+        virtual Scalar GetCharacteristicLength() const;
         
         //! A method used to override the automatically estimated added mass and added inertia of the body.
         /*!
@@ -134,7 +134,7 @@ namespace sf
         virtual void SetAddedMass(const Vector3& addedMass, const Vector3& addedInertia);
 
         //! A method returning the ratio of the liquid volume displaced by a (flooded) shell body to the volume enclosed by its surface.
-        Scalar getShellBuoyancyRatio() const;
+        Scalar GetShellBuoyancyRatio() const;
         
         //! A static method that computes fluid dynamics when a body is crossing the fluid surface.
         /*!
@@ -365,7 +365,7 @@ namespace sf
 		Vector3 GetAddedMass() const;
 
         //! A method returning the added mass tensor of the body (expressed in the CG frame).
-        Matrix3 getAddedMassTensor() const;
+        Matrix3 GetAddedMassTensor() const;
 	  
 		//! A method returning the hydrodynamic added inertia (diagonal elements).
 		Vector3 GetAddedInertia() const;

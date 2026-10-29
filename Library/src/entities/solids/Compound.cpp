@@ -176,7 +176,7 @@ void Compound::RecalculatePhysicalProperties()
         if(parts_[i].isExternal && parts_[i].solid->GetPhysicsMode() == PhysicsMode::SUBMERGED) //Added mass tensor of the part in the compound origin frame
         {
             Matrix3 partToComp = (parts_[i].origin * parts_[i].solid->GetCG2OTransform().inverse()).getBasis();
-            compoundAddedMass += partToComp * parts_[i].solid->getAddedMassTensor() * partToComp.transpose();
+            compoundAddedMass += partToComp * parts_[i].solid->GetAddedMassTensor() * partToComp.transpose();
         }
         
         if(parts_[i].solid->IsBuoyant())
@@ -217,7 +217,7 @@ void Compound::RecalculatePhysicalProperties()
         {
             Matrix3 B = compToPart.getBasis();
             Vector3 ai = parts_[i].solid->GetAddedInertia();
-            Matrix3 addedMassOffset = tx * B * parts_[i].solid->getAddedMassTensor() * B.transpose() * tx;
+            Matrix3 addedMassOffset = tx * B * parts_[i].solid->GetAddedMassTensor() * B.transpose() * tx;
             solidInertia -= addedMassOffset;
             Iadded += B * Matrix3(ai.x(), 0, 0, 0, ai.y(), 0, 0, 0, ai.z()) * B.transpose() - addedMassOffset;
         }
@@ -321,7 +321,7 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
             Vector3 v = GetLinearVelocity();
             Vector3 omega = GetAngularVelocity();
             Scalar speed = (ocn->GetFluidVelocity(GetCgTransform().getOrigin()) - v).length();
-            Scalar Cf0 = SkinFrictionCoefficient(ocn, speed, getCharacteristicLength());
+            Scalar Cf0 = SkinFrictionCoefficient(ocn, speed, GetCharacteristicLength());
             
             //Create temporary vectors for summing
             Vector3 Fdqp(0,0,0);
@@ -377,7 +377,7 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
             Vector3 v = GetLinearVelocity();
             Vector3 omega = GetAngularVelocity();
             Scalar speed = (ocn->GetFluidVelocity(GetCgTransform().getOrigin()) - v).length();
-            Scalar Cf0 = SkinFrictionCoefficient(ocn, speed, getCharacteristicLength());
+            Scalar Cf0 = SkinFrictionCoefficient(ocn, speed, GetCharacteristicLength());
         
             //Create temporary vectors for summing
             Vector3 Fbp(0,0,0);
@@ -400,7 +400,7 @@ void Compound::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocean* 
                 HydrodynamicsSettings pSettings = settings;
                 pSettings.reallisticBuoyancy &= parts_[i].solid->IsBuoyant();
 
-                Scalar shellRatio = parts_[i].solid->getShellBuoyancyRatio();
+                Scalar shellRatio = parts_[i].solid->GetShellBuoyancyRatio();
 
                 if(parts_[i].isExternal) //Compute buoyancy and drag
                 {

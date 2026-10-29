@@ -126,14 +126,14 @@ namespace sf
         /*!
          \param rmsSlope the root mean square slope of the surface [rad] (0 means perfectly flat surface)
          */
-        void setRipples(Scalar rmsSlope);
+        void SetRipples(Scalar rmsSlope);
 
         //! A method to set the bottom under the water, which reflects light up (visual effect, e.g. the floor of a pool).
         /*!
          \param depth the depth of the bottom below the surface [m]
          \param albedo the diffuse reflectance of the bottom (0 means no bottom)
          */
-        void setBottom(Scalar depth, Scalar albedo);
+        void SetBottom(Scalar depth, Scalar albedo);
 
         //! A method to enable rendering of suspended particles (underwater snow).
         void SetParticles(bool enabled);
@@ -142,10 +142,10 @@ namespace sf
         bool HasParticles() const;
 
         //! A method to enable rendering of caustics (focusing of the sun light by the surface ripples).
-        void setCaustics(bool enabled);
+        void SetCaustics(bool enabled);
 
         //! A method informing if the caustics are enabled.
-        bool hasCaustics() const;
+        bool HasCaustics() const;
 
         //! A method returning the type of the water.
         Scalar GetWaterType() const;

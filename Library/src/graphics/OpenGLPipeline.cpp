@@ -130,7 +130,7 @@ SDL_mutex* OpenGLPipeline::GetDrawingQueueMutex()
     return drawingQueueMutex_;
 }
     
-void OpenGLPipeline::setWindowMinimized(bool minimized)
+void OpenGLPipeline::SetWindowMinimized(bool minimized)
 {
     windowMinimized_ = minimized;
 }
@@ -391,7 +391,7 @@ bool OpenGLPipeline::Render(SimulationManager* sim, bool onlyIfUpdated)
             continue;
 
         if(view->GetType() == ViewType::SEGMENTATION_CAMERA 
-           && static_cast<OpenGLSegmentationCamera*>(view)->getPairedView() != nullptr)
+           && static_cast<OpenGLSegmentationCamera*>(view)->GetPairedView() != nullptr)
         {
             pairedViews.push_back(i);
             continue;
@@ -734,7 +734,7 @@ bool OpenGLPipeline::Render(SimulationManager* sim, bool onlyIfUpdated)
                         DrawLights();
                         
                         //Without waves the mirror image reflects the scene in the surface, so only reflective looks need SSR
-                        if(rSettings_.ssr > RenderQuality::DISABLED && (ocean->HasWaves() || content_->hasReflectiveLooks()))
+                        if(rSettings_.ssr > RenderQuality::DISABLED && (ocean->HasWaves() || content_->HasReflectiveLooks()))
                         {
                             //Linear depth front faces
                             camera->GenerateLinearDepth(true);
@@ -878,7 +878,7 @@ bool OpenGLPipeline::Render(SimulationManager* sim, bool onlyIfUpdated)
     {
         OpenGLSegmentationCamera* camera = static_cast<OpenGLSegmentationCamera*>(content_->GetView(pairedViews[i]));
         auto rendered = std::find_if(viewsQueue_.begin(), viewsQueue_.begin() + updateCount, 
-            [this, camera](unsigned int id) { return content_->GetView(id) == camera->getPairedView(); });
+            [this, camera](unsigned int id) { return content_->GetView(id) == camera->GetPairedView(); });
         if(rendered != viewsQueue_.begin() + updateCount && camera->NeedsUpdate())
         {
             OpenGLState::EnableDepthTest();

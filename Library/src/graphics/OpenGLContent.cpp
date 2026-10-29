@@ -925,7 +925,7 @@ void OpenGLContent::DrawLightSource(unsigned int lightId)
             Ocean* ocean = SimulationApp::GetApp()->GetSimulationManager()->GetOcean();
             shader->SetUniform("cWater", ocean->GetOpenGlOcean()->GetLightAttenuation());
             shader->SetUniform("bWater", ocean->GetOpenGlOcean()->GetLightScattering());
-            shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->getBottom());
+            shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->GetBottom());
         }
 
         OpenGLState::BindVertexArray(objects_[objectId].vao);
@@ -1144,7 +1144,7 @@ void OpenGLContent::UseLook(const Look& look, bool texturable, const glm::mat4& 
     {
         shader->SetUniform("cWater", ocean->GetOpenGlOcean()->GetLightAttenuation());
         shader->SetUniform("bWater", ocean->GetOpenGlOcean()->GetLightScattering());
-        shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->getBottom());
+        shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->GetBottom());
         if(waves)
         {
             OpenGLState::BindTexture(TEX_POSTPROCESS1, GL_TEXTURE_2D_ARRAY, ocean->GetOpenGlOcean()->GetWaveTexture());
@@ -1271,7 +1271,7 @@ void OpenGLContent::UseCableLook(const Look& look, GLfloat radius)
     {
         shader->SetUniform("cWater", ocean->GetOpenGlOcean()->GetLightAttenuation());
         shader->SetUniform("bWater", ocean->GetOpenGlOcean()->GetLightScattering());
-        shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->getBottom());
+        shader->SetUniform("waterBottom", ocean->GetOpenGlOcean()->GetBottom());
         if(waves)
         {
             OpenGLState::BindTexture(TEX_POSTPROCESS1, GL_TEXTURE_2D_ARRAY, ocean->GetOpenGlOcean()->GetWaveTexture());
@@ -1441,7 +1441,7 @@ const Look& OpenGLContent::GetLook(size_t id)
     return looks_[id];
 }
 
-bool OpenGLContent::hasReflectiveLooks()
+bool OpenGLContent::HasReflectiveLooks()
 {
     return std::any_of(looks_.begin(), looks_.end(), [](const Look& l) { return l.reflectivity > 0.f; });
 }

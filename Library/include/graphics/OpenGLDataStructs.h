@@ -194,7 +194,7 @@ namespace sf
         }
 
         //! A method returning an accessor allowing for fast vertex position lookup.
-        VertexPosAccessor getVertexPosAccessor() const
+        VertexPosAccessor GetVertexPosAccessor() const
         {
             return VertexPosAccessor{(const uint8_t*)GetVertexDataPointer(), GetVertexSize()};
         }

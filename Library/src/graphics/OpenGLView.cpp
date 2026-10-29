@@ -74,7 +74,7 @@ void OpenGLView::SetPendingCaptureTime(double t)
     tempCaptureTime_ = t;
 }
 
-double OpenGLView::getCaptureTime() const
+double OpenGLView::GetCaptureTime() const
 {
     return captureTime_;
 }

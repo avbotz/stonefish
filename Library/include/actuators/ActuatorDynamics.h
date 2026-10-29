@@ -310,7 +310,7 @@ namespace sf
         /*!
           \param ratio absolute value of the torque to thrust ratio [m]
         */
-        void setTorqueRatio(Scalar ratio)
+        void SetTorqueRatio(Scalar ratio)
         {
             torqueRatio_ = btFabs(ratio);
         }
@@ -562,7 +562,7 @@ namespace sf
         /*!
           \param rho density of the fluid [kg/m^3]
         */
-        void setLiquidDensity(Scalar rho)
+        void SetLiquidDensity(Scalar rho)
         {
             rho_ = rho;
         }

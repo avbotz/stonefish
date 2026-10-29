@@ -687,7 +687,7 @@ void OpenGLCamera::RenderWaterReflection(OpenGLPipeline* pipe)
     SetViewport();
 }
 
-GLuint OpenGLCamera::getWaterReflectionTexture()
+GLuint OpenGLCamera::GetWaterReflectionTexture()
 {
     return reflectionTex_[0];
 }

@@ -633,7 +633,7 @@ Vector3 SolidEntity::GetAddedMass() const
     return aMass_;
 }
 
-Matrix3 SolidEntity::getAddedMassTensor() const
+Matrix3 SolidEntity::GetAddedMassTensor() const
 {
     return aMassT_;
 }
@@ -1150,7 +1150,7 @@ void SolidEntity::BuildRigidBody(btDynamicsWorld* world)
         
         btRigidBody::btRigidBodyConstructionInfo rigidBodyCI(M, motionState_.get(), collisionShape_.get(), I);
         rigidBodyCI.m_friction = rigidBodyCI.m_rollingFriction = rigidBodyCI.m_restitution = Scalar(0.); //not used
-        rigidBodyCI.m_linearDamping = rigidBodyCI.m_angularDamping = SimulationApp::GetApp()->GetSimulationManager()->getBodyDamping();
+        rigidBodyCI.m_linearDamping = rigidBodyCI.m_angularDamping = SimulationApp::GetApp()->GetSimulationManager()->GetBodyDamping();
         rigidBodyCI.m_additionalDamping = false;
 
         rigidBody_ = std::make_unique<btRigidBody>(rigidBodyCI);
@@ -1345,7 +1345,7 @@ Scalar SolidEntity::SkinFrictionCoefficient(Ocean* ocn, Scalar speed, Scalar len
     return Scalar(0.075)/((logRe - Scalar(2)) * (logRe - Scalar(2)));
 }
 
-Scalar SolidEntity::getShellBuoyancyRatio() const
+Scalar SolidEntity::GetShellBuoyancyRatio() const
 {
     //Shell bodies are considered flooded (only the wall displaces liquid), consistently with the fully submerged case.
     //Buoyancy of a partially submerged body is computed by integrating over the outer surface, so it has to be scaled.
@@ -1364,7 +1364,7 @@ Scalar SolidEntity::getShellBuoyancyRatio() const
     return enclosedVolume > volume_ ? volume_/enclosedVolume : Scalar(1);
 }
 
-Scalar SolidEntity::getCharacteristicLength() const
+Scalar SolidEntity::GetCharacteristicLength() const
 {
     return btSqrt(surface_/Scalar(M_PI)); //Diameter of a sphere with the same surface area
 }
@@ -1457,7 +1457,7 @@ void SolidEntity::ComputeHydrodynamicForcesSurface(const HydrodynamicsSettings& 
     p0.z = 0.f;       //When the robot is far from the world origin numerical erros would explode without translating the mesh data!
     
     //Loop through all faces...
-    const VertexPosAccessor vertexPos = mesh->getVertexPosAccessor();
+    const VertexPosAccessor vertexPos = mesh->GetVertexPosAccessor();
     const size_t numFaces = mesh->faces.size();
 
     for(size_t i=0; i<numFaces; ++i)
@@ -1876,7 +1876,7 @@ void SolidEntity::ComputeHydrodynamicForcesSubmerged(const Mesh* mesh, Ocean* oc
     glm::vec3 p = glm::vec3(TCG[3]);
 
     //Loop through all faces...
-    const VertexPosAccessor vertexPos = mesh->getVertexPosAccessor();
+    const VertexPosAccessor vertexPos = mesh->GetVertexPosAccessor();
     const size_t numFaces = mesh->faces.size();
 
     for(size_t i=0; i<numFaces; ++i)
@@ -1979,7 +1979,7 @@ void SolidEntity::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocea
     {
         if(!IsBuoyant()) settings.reallisticBuoyancy = false;
         ComputeHydrodynamicForcesSurface(settings, GetPhysicsMesh(), ocn, GetCgTransform(), GetCTransform(), v, omega, Fb_, Tb_, Fdq_, Tdq_, Fdf_, Tdf_, Swet_, Vsub_, submerged_);
-        Scalar shellRatio = getShellBuoyancyRatio();
+        Scalar shellRatio = GetShellBuoyancyRatio();
         Fb_ *= shellRatio;
         Tb_ *= shellRatio;
         Vsub_ *= shellRatio;
@@ -1988,7 +1988,7 @@ void SolidEntity::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocea
     if(settings.dampingForces)
     {
         Scalar speed = (ocn->GetFluidVelocity(GetCgTransform().getOrigin()) - v).length();
-        CorrectHydrodynamicForces(ocn, Fdq_, Tdq_, Fdf_, Tdf_, fdCd_, fdCf_, GetOTransform(), SkinFrictionCoefficient(ocn, speed, getCharacteristicLength()));
+        CorrectHydrodynamicForces(ocn, Fdq_, Tdq_, Fdf_, Tdf_, fdCd_, fdCf_, GetOTransform(), SkinFrictionCoefficient(ocn, speed, GetCharacteristicLength()));
     }
 }
 
@@ -2026,7 +2026,7 @@ void SolidEntity::ComputeAerodynamicForces(const Mesh* mesh, Atmosphere* atm, co
     glm::vec3 p = glm::vec3(TCG[3]);
 
     //Loop through all faces...
-    const VertexPosAccessor vertexPos = mesh->getVertexPosAccessor();
+    const VertexPosAccessor vertexPos = mesh->GetVertexPosAccessor();
     const size_t numFaces = mesh->faces.size();
 
     for(size_t i=0; i<numFaces; ++i)

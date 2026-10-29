@@ -171,7 +171,7 @@ void Thruster::Update(Scalar dt)
             Vector3 velocity = attach_->GetLinearVelocityInLocalPoint(relPos);
             Scalar u = -thrustTrans.getBasis().getColumn(0).dot(ocn->GetFluidVelocity(thrustTrans.getOrigin()) - velocity);
             static_cast<FDThrust*>(thrustModel_.get())->SetIncomingFluidVelocity(u);
-            static_cast<FDThrust*>(thrustModel_.get())->setLiquidDensity(ocn->GetLiquid().density);
+            static_cast<FDThrust*>(thrustModel_.get())->SetLiquidDensity(ocn->GetLiquid().density);
             std::pair<Scalar, Scalar> out = thrustModel_->Update(omega_); // Handedness accounted for in the model
             thrust_ = out.first;
             torque_ = out.second;
@@ -548,7 +548,7 @@ std::unique_ptr<Thruster> Thruster::Construct(std::string_view uniqueName, Const
     {
         Scalar torqueRatio = std::get<Scalar>(value.value);
         if (thrustModel->GetType() != ThrustModelType::FD)
-            thrustModel->setTorqueRatio(torqueRatio);
+            thrustModel->SetTorqueRatio(torqueRatio);
         else if (torqueRatio != Scalar(0))
             cWarning("Torque ratio of actuator '%s' ignored - fluid dynamics thrust model uses torque coefficient.", std::string(uniqueName).c_str());
     }

@@ -313,7 +313,7 @@ namespace sf
          \param erp error reduction for constraint solving
          \param stopErp error reduction for constraint limit solving
          \param erp2 error reduction for contact solving
-         \param globalDamping damping added globally to all dynamic bodies (see setBodyDamping)
+         \param globalDamping damping added globally to all dynamic bodies (see SetBodyDamping)
          \param globalFriction friction added globally to all dynamic bodies
          \param linearSleepingThreshold a linear velocity below which the dynamic bodies will sleep [m/s]
          \param angularSleepingThreshold an angular velocity below which the dynamic bodies will sleep [rad/s]
@@ -325,7 +325,7 @@ namespace sf
         /*!
          \param damping a damping factor <0,1> (0 = no damping), affecting the bodies added to the simulation after the call (reset when the solver is initialized)
          */
-        void setBodyDamping(Scalar damping);
+        void SetBodyDamping(Scalar damping);
 
         //! A method that sets the display mode of dynamical rigid bodies.
         /*!
@@ -349,7 +349,7 @@ namespace sf
         bool GetCallSimulationStepCompleted() const;
 
         //! A method returning the fluid dynamics prescaler (number of simulation steps between recomputations of fluid forces).
-        unsigned int getFluidDynamicsPrescaler() const;
+        unsigned int GetFluidDynamicsPrescaler() const;
         
         //! A method returning the axis-aligned bounding box of the simulation world.
         /*!
@@ -499,16 +499,16 @@ namespace sf
         /*!
          \return the offset between simulation time and system time in seconds
          */
-        Scalar getSimulationTimeOffset() const;
+        Scalar GetSimulationTimeOffset() const;
 
         //! A method returning the names of the objects drawn by the segmentation cameras (thread safe).
         /*!
          \return a vector whose element i is the name of the entity, sensor, actuator or communication device drawn with pixel value i (element 0, the background, is empty)
          */
-        std::vector<std::string> getSegmentationLabels();
+        std::vector<std::string> GetSegmentationLabels();
 
         //! A method returning a number that changes whenever the segmentation labels change (thread safe).
-        unsigned int getSegmentationLabelsRevision();
+        unsigned int GetSegmentationLabelsRevision();
         
         //! A method informing about the relation between the simulated time and real time.
         Scalar GetRealtimeFactor() const;
@@ -538,7 +538,7 @@ namespace sf
         void GetJointErp(Scalar& erp, Scalar& stopErp) const;
 
         //! A method returning the non-physical damping applied to all dynamic bodies.
-        Scalar getBodyDamping() const;
+        Scalar GetBodyDamping() const;
         
         //------ Aliases created to shorten the code needed to build the scenario ------
         
@@ -602,7 +602,7 @@ namespace sf
         void RenderBulletDebug();
         void InitializeSolver();
         void InitializeScenario();
-        std::vector<Renderable> LabelForSegmentation(std::vector<Renderable> items, const std::string& name);
+        std::vector<Renderable> LabelForSegmentation(std::vector<Renderable> items, std::string_view name);
         
         // State
         Scalar simulationTime_; // Time of simulation run in seconds

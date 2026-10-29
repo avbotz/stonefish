@@ -571,7 +571,7 @@ void OpenGLRealOcean::DrawBacksurface(OpenGLView* view)
     oceanShaders_["backsurface"]->SetUniform("u_gpu_tess_factor", (GLfloat)qtGPUTessFactor_);
     oceanShaders_["backsurface"]->SetUniform("cWater", GetLightAttenuation());
     oceanShaders_["backsurface"]->SetUniform("bWater", GetLightScattering());
-    oceanShaders_["backsurface"]->SetUniform("waterBottom", getBottom());
+    oceanShaders_["backsurface"]->SetUniform("waterBottom", GetBottom());
     OpenGLState::BindVertexArray(vao_);
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, tree.patchDEI);
     glCullFace(GL_FRONT);

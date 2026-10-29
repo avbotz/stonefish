@@ -601,32 +601,33 @@ Scalar SimulationManager::GetSimulationTime(bool applyOffset) const
     return st;
 }
 
-Scalar SimulationManager::getSimulationTimeOffset() const
+Scalar SimulationManager::GetSimulationTimeOffset() const
 {
     return timeOffset_/(Scalar)1e6;
 }
 
-std::vector<std::string> SimulationManager::getSegmentationLabels()
+std::vector<std::string> SimulationManager::GetSegmentationLabels()
 {
     std::lock_guard<std::mutex> lock(segmentationMutex_);
     return segmentationLabels_;
 }
 
-unsigned int SimulationManager::getSegmentationLabelsRevision()
+unsigned int SimulationManager::GetSegmentationLabelsRevision()
 {
     std::lock_guard<std::mutex> lock(segmentationMutex_);
     return segmentationLabelsRevision_;
 }
 
-std::vector<Renderable> SimulationManager::LabelForSegmentation(std::vector<Renderable> items, const std::string& name)
+std::vector<Renderable> SimulationManager::LabelForSegmentation(std::vector<Renderable> items, std::string_view name)
 {
     if(items.empty())
         return items;
 
     unsigned short id = 0;
     {
+        std::string key(name);
         std::lock_guard<std::mutex> lock(segmentationMutex_);
-        auto it = segmentationIds_.find(name);
+        auto it = segmentationIds_.find(key);
         if(it != segmentationIds_.end())
             id = it->second;
         else
@@ -637,10 +638,10 @@ std::vector<Renderable> SimulationManager::LabelForSegmentation(std::vector<Rend
             if(segmentationLabels_.size() < SegmentationCamera::OCEAN_PARTICLES_ID)
             {
                 id = (unsigned short)segmentationLabels_.size();
-                segmentationLabels_.push_back(name);
+                segmentationLabels_.push_back(key);
                 ++segmentationLabelsRevision_;
             }
-            segmentationIds_[name] = id;
+            segmentationIds_[key] = id;
         }
     }
 
@@ -723,7 +724,7 @@ bool SimulationManager::GetCallSimulationStepCompleted() const
     return callSimulationStepCompleted_;
 }
 
-unsigned int SimulationManager::getFluidDynamicsPrescaler() const
+unsigned int SimulationManager::GetFluidDynamicsPrescaler() const
 {
     return fdPrescaler_;
 }
@@ -806,15 +807,15 @@ void SimulationManager::SetSolverParams(Scalar erp, Scalar stopErp, Scalar erp2,
     jointLimitErp_ = stopErp;
     linSleepThreshold_ = linearSleepingThreshold;
     angSleepThreshold_ = angularSleepingThreshold;
-    setBodyDamping(globalDamping);
+    SetBodyDamping(globalDamping);
 }
 
-void SimulationManager::setBodyDamping(Scalar damping)
+void SimulationManager::SetBodyDamping(Scalar damping)
 {
     bodyDamping_ = btClamped(damping, Scalar(0), Scalar(1));
 }
 
-Scalar SimulationManager::getBodyDamping() const
+Scalar SimulationManager::GetBodyDamping() const
 {
     return bodyDamping_;
 }
@@ -1657,14 +1658,14 @@ static void ComputeFluidForcesParallel(ThreadPool* threads, const std::vector<bt
         return;
     }
 
-    size_t numChunks = std::min(threads->getNumThreads(), numBodies);
+    size_t numChunks = std::min(threads->GetNumThreads(), numBodies);
     size_t chunkSize = (numBodies + numChunks - 1)/numChunks;
 
     for(size_t begin = 0; begin < numBodies; begin += chunkSize)
     {
         size_t end = std::min(begin + chunkSize, numBodies);
         //Capturing by reference is safe because WaitAll() below blocks until all tasks finished
-        threads->post([&bodies, &apply, begin, end]()
+        threads->Post([&bodies, &apply, begin, end]()
         {
             for(size_t i=begin; i<end; ++i)
                 apply(bodies[i]);

@@ -133,7 +133,7 @@ namespace sf
         void SetPendingCaptureTime(double t);
 
         //! A method returning the simulation time [s] of the last captured frame.
-        double getCaptureTime() const;
+        double GetCaptureTime() const;
 
         //! A method extracting frustium planes from the view-projection matrix.
         /*!

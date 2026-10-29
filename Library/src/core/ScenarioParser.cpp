@@ -566,7 +566,7 @@ bool ScenarioParser::ParseSolver(XMLElement* element)
     Scalar erp, stopErp;
     sm_->GetJointErp(erp, stopErp);
     Scalar erp2 = sm_->GetDynamicsWorld()->getSolverInfo().m_erp2;
-    Scalar globalDamping = sm_->getBodyDamping();
+    Scalar globalDamping = sm_->GetBodyDamping();
     Scalar globalFriction = sm_->GetDynamicsWorld()->getSolverInfo().m_friction;
     Scalar linSleep, angSleep;
     sm_->GetSleepingThresholds(linSleep, angSleep);
@@ -656,7 +656,7 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         std::string waterName = sm_->GetMaterialManager()->CreateFluid("Water", waterDensity, waterViscosity, 1.33); 
         sm_->EnableOcean(wavesHeight, sm_->GetMaterialManager()->GetFluid(waterName));
         sm_->GetOcean()->SetWaterType(jerlov);
-        sm_->GetOcean()->setRipples(ripples);
+        sm_->GetOcean()->SetRipples(ripples);
         sm_->GetOcean()->SetConditions(waterTemperature);
         
         //Particles
@@ -673,7 +673,7 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
         {
             item->QueryAttribute("enabled", &caustics);
         }
-        sm_->GetOcean()->setCaustics(caustics);
+        sm_->GetOcean()->SetCaustics(caustics);
 
         //Bottom reflecting light up, e.g. the floor of a pool
         if((item = ocean->FirstChildElement("bottom")) != nullptr)
@@ -685,7 +685,7 @@ bool ScenarioParser::ParseEnvironment(XMLElement* element)
                 log.Print(MessageType::ERROR, "Ocean bottom not properly defined!");
                 return false;
             }
-            sm_->GetOcean()->setBottom(bottomDepth, bottomAlbedo);
+            sm_->GetOcean()->SetBottom(bottomDepth, bottomAlbedo);
         }
 
         //Currents

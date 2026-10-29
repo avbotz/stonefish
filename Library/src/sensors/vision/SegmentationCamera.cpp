@@ -111,7 +111,7 @@ bool SegmentationCamera::PairWith(Camera* cam)
     if(w != camW || h != camH)
         return false;
 
-    glCamera_->setPairedView(cam->GetOpenGlView());
+    glCamera_->SetPairedView(cam->GetOpenGlView());
     return true;
 }
 

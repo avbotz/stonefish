@@ -94,7 +94,7 @@ namespace sf
         virtual void Simulate(GLfloat dt);
 
         //! A method informing if the surface is shaped by the simulated waves (a flat one only uses the capillary ripples).
-        virtual bool simulatesWaves();
+        virtual bool SimulatesWaves();
         
         //! A method that updates the wave mesh.
         /*!
@@ -200,19 +200,19 @@ namespace sf
         /*!
          \param rmsSlope the root mean square slope of the surface [rad] (0 means perfectly flat surface)
          */
-        void setRipples(GLfloat rmsSlope);
+        void SetRipples(GLfloat rmsSlope);
 
         //! A method returning the root mean square slope of capillary ripples.
-        GLfloat getRipples();
+        GLfloat GetRipples();
 
         //! A method to set if the caustics should be rendered (uniform sun light under water otherwise).
         /*!
          \param enabled a flag specifying if the caustics should be rendered
          */
-        void setCaustics(bool enabled);
+        void SetCaustics(bool enabled);
 
         //! A method informing if the caustics are enabled.
-        bool getCausticsEnabled();
+        bool GetCausticsEnabled();
 
         //! A method to set the type of ocean water.
         /*!
@@ -237,10 +237,10 @@ namespace sf
          \param depth the depth of the bottom below the surface [m]
          \param albedo the diffuse reflectance of the bottom (0 means no bottom)
          */
-        void setBottom(GLfloat depth, GLfloat albedo);
+        void SetBottom(GLfloat depth, GLfloat albedo);
 
         //! A method returning the depth of the bottom [m] and its albedo.
-        glm::vec2 getBottom();
+        glm::vec2 GetBottom();
 
         //! A method to set if the particles should be rendered.
         /*!

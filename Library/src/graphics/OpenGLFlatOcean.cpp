@@ -200,7 +200,7 @@ OpenGLFlatOcean::~OpenGLFlatOcean()
     glDeleteBuffers(1, &vbo_);
 }
     
-bool OpenGLFlatOcean::simulatesWaves()
+bool OpenGLFlatOcean::SimulatesWaves()
 {
     return false;
 }
@@ -272,7 +272,7 @@ void OpenGLFlatOcean::DrawBacksurface(OpenGLView* view)
     //Mirror image of the scene rendered by the camera
     GLuint reflection = 0;
     if(view->GetType() == ViewType::CAMERA || view->GetType() == ViewType::TRACKBALL || view->GetType() == ViewType::EVENT_BASED_CAMERA)
-        reflection = static_cast<OpenGLCamera*>(view)->getWaterReflectionTexture();
+        reflection = static_cast<OpenGLCamera*>(view)->GetWaterReflectionTexture();
     if(reflection != 0)
         OpenGLState::BindTexture(TEX_POSTPROCESS3, GL_TEXTURE_2D, reflection);
 
@@ -285,7 +285,7 @@ void OpenGLFlatOcean::DrawBacksurface(OpenGLView* view)
     oceanShaders_["backsurface"]->SetUniform("gridSizes", params_.gridSizes);
     oceanShaders_["backsurface"]->SetUniform("cWater", GetLightAttenuation());
     oceanShaders_["backsurface"]->SetUniform("bWater", GetLightScattering());
-    oceanShaders_["backsurface"]->SetUniform("waterBottom", getBottom());
+    oceanShaders_["backsurface"]->SetUniform("waterBottom", GetBottom());
     oceanShaders_["backsurface"]->SetUniform("viewport", glm::vec2((GLfloat)viewport[2], (GLfloat)viewport[3]));
     oceanShaders_["backsurface"]->SetUniform("texWaveFFT", TEX_POSTPROCESS1);
     oceanShaders_["backsurface"]->SetUniform("texSlopeVariance", TEX_POSTPROCESS2);

@@ -131,10 +131,10 @@ namespace sf
         /*!
          \param view a pointer to the view (with the same resolution), or nullptr to unpair
          */
-        void setPairedView(OpenGLView* view);
+        void SetPairedView(OpenGLView* view);
 
         //! A method returning the view the camera is paired with (nullptr if not paired).
-        OpenGLView* getPairedView() const;
+        OpenGLView* GetPairedView() const;
         
         //! A method returning the type of the view.
         ViewType GetType() const override;

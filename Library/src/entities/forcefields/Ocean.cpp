@@ -72,10 +72,10 @@ bool Ocean::HasParticles() const
         return false;
 }
 
-bool Ocean::hasCaustics() const
+bool Ocean::HasCaustics() const
 {
     if(glOcean_ != nullptr)
-        return glOcean_->getCausticsEnabled();
+        return glOcean_->GetCausticsEnabled();
     else
         return false;
 }
@@ -117,16 +117,16 @@ void Ocean::SetWaterType(Scalar jerlov)
     }
 }
 
-void Ocean::setRipples(Scalar rmsSlope)
+void Ocean::SetRipples(Scalar rmsSlope)
 {
     if(glOcean_ != nullptr)
-        glOcean_->setRipples((float)rmsSlope);
+        glOcean_->SetRipples((float)rmsSlope);
 }
 
-void Ocean::setBottom(Scalar depth, Scalar albedo)
+void Ocean::SetBottom(Scalar depth, Scalar albedo)
 {
     if(glOcean_ != nullptr)
-        glOcean_->setBottom((float)depth, (float)albedo);
+        glOcean_->SetBottom((float)depth, (float)albedo);
 }
 
 void Ocean::SetParticles(bool enabled)
@@ -135,10 +135,10 @@ void Ocean::SetParticles(bool enabled)
         glOcean_->SetParticles(enabled);
 }
 
-void Ocean::setCaustics(bool enabled)
+void Ocean::SetCaustics(bool enabled)
 {
     if(glOcean_ != nullptr)
-        glOcean_->setCaustics(enabled);
+        glOcean_->SetCaustics(enabled);
 }
 
 void Ocean::SetConditions(Scalar waterTemp)

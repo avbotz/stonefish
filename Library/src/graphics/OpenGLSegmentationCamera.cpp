@@ -247,12 +247,12 @@ void OpenGLSegmentationCamera::SetCamera(Camera* cam, unsigned int index)
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 }
 
-void OpenGLSegmentationCamera::setPairedView(OpenGLView* view)
+void OpenGLSegmentationCamera::SetPairedView(OpenGLView* view)
 {
     pairedView_ = view;
 }
 
-OpenGLView* OpenGLSegmentationCamera::getPairedView() const
+OpenGLView* OpenGLSegmentationCamera::GetPairedView() const
 {
     return pairedView_;
 }
@@ -357,7 +357,7 @@ void OpenGLSegmentationCamera::DrawLDR(GLuint destinationFBO, bool updated)
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
         OpenGLState::UnbindTexture(TEX_POSTPROCESS1);
         //The paired view was rendered just before, in the same frame
-        captureTime_ = pairedView_ != nullptr ? pairedView_->getCaptureTime() : pendingCaptureTime_;
+        captureTime_ = pairedView_ != nullptr ? pairedView_->GetCaptureTime() : pendingCaptureTime_;
         newData_ = true;
     }
 }

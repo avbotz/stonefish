@@ -52,7 +52,7 @@ void FluidDynamicsTestManager::BuildScenario()
     sf::Scalar erp, stopErp;
     GetJointErp(erp, stopErp);
     sf::Scalar erp2 = GetDynamicsWorld()->getSolverInfo().m_erp2;
-    sf::Scalar globalDamping = getBodyDamping();
+    sf::Scalar globalDamping = GetBodyDamping();
     sf::Scalar globalFriction = GetDynamicsWorld()->getSolverInfo().m_friction;
     sf::Scalar linSleep, angSleep;
     GetSleepingThresholds(linSleep, angSleep);

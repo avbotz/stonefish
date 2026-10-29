@@ -111,7 +111,7 @@ namespace sf
         OpenGLContent* GetContent();
 
         //! A method informing the pipeline that the window is minimized, so that its view need not be rendered.
-        void setWindowMinimized(bool minimized);
+        void SetWindowMinimized(bool minimized);
         
     private:
         void PerformDrawingQueueCopy(SimulationManager* sim);

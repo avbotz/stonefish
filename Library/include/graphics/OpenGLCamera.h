@@ -109,7 +109,7 @@ namespace sf
         void RenderWaterReflection(OpenGLPipeline* pipe);
 
         //! A method returning the texture with the reflection of the scene on the water surface (0 if not rendered).
-        GLuint getWaterReflectionTexture();
+        GLuint GetWaterReflectionTexture();
 
         //! A method checking if the flat water surface (plane z=0) can be seen by the camera placed under water.
         bool CanSeeWaterSurface();

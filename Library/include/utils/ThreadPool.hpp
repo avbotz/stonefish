@@ -124,7 +124,7 @@ namespace sf
          which matters when tasks are dispatched from a hot loop. Use WaitAll() to synchronise.
          */
         template <class F>
-        void post(F &&f)
+        void Post(F &&f)
         {
             {
                 std::unique_lock<std::mutex> lock(queueMutex_);
@@ -142,7 +142,7 @@ namespace sf
         }
 
         //! A method returning the number of worker threads in the pool.
-        size_t getNumThreads() const
+        size_t GetNumThreads() const
         {
             return workers_.size();
         }

@@ -366,7 +366,7 @@ namespace sf
         const Look& GetLook(size_t id);
 
         //! A method informing if any look reflects the scene (needs screen-space reflections).
-        bool hasReflectiveLooks();
+        bool HasReflectiveLooks();
         
         //! A static method to load a texture.
         /*!

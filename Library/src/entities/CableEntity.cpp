@@ -247,7 +247,7 @@ void CableEntity::ComputeHydrodynamicForces(HydrodynamicsSettings settings, Ocea
 
     // Time during which the computed forces are applied (stability of drag)
     SimulationManager* sm = SimulationApp::GetApp()->GetSimulationManager();
-    Scalar holdTime = Scalar(sm->getFluidDynamicsPrescaler()) / sm->GetStepsPerSecond();
+    Scalar holdTime = Scalar(sm->GetFluidDynamicsPrescaler()) / sm->GetStepsPerSecond();
 
     size_t numNodes = cableBody_->m_nodes.size();
     for (size_t i = 0; i < numNodes-1; ++i)

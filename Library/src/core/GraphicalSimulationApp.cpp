@@ -337,12 +337,12 @@ void GraphicalSimulationApp::WindowEvent(SDL_Event* event)
 
         case SDL_WINDOWEVENT_MINIMIZED:
         case SDL_WINDOWEVENT_HIDDEN:
-            glPipeline_->setWindowMinimized(true);
+            glPipeline_->SetWindowMinimized(true);
             break;
 
         case SDL_WINDOWEVENT_RESTORED:
         case SDL_WINDOWEVENT_SHOWN:
-            glPipeline_->setWindowMinimized(false);
+            glPipeline_->SetWindowMinimized(false);
             break;
     }
 }
@@ -791,7 +791,7 @@ void GraphicalSimulationApp::DoHUD()
             offset += 29.f;
 
             id.item = 3;
-            ocn->setCaustics(gui_->DoCheckBox(id, 19.f, offset, 110.f, ocn->hasCaustics(), "Caustics"));
+            ocn->SetCaustics(gui_->DoCheckBox(id, 19.f, offset, 110.f, ocn->HasCaustics(), "Caustics"));
             offset += 29.f;
         }
 

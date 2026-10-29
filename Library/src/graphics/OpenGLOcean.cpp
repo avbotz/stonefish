@@ -400,7 +400,7 @@ OpenGLOcean::OpenGLOcean(GLfloat size)
     rippleTime_ = 0.f;
     causticsUniform_ = false;
     causticsEnabled_ = true;
-    setRipples(0.05f); //Light breeze
+    SetRipples(0.05f); //Light breeze
     GenerateCaustics(glm::vec3(0.f,0.f,-1.f), 0.f);
 }
 
@@ -417,7 +417,7 @@ OpenGLOcean::~OpenGLOcean()
     glDeleteBuffers(2, causticsBuffers_);
 }
 
-void OpenGLOcean::setRipples(GLfloat rmsSlope)
+void OpenGLOcean::SetRipples(GLfloat rmsSlope)
 {
     rippleSlope_ = rmsSlope < 0.f ? 0.f : rmsSlope;
     rippleWaves_.clear();
@@ -452,17 +452,17 @@ void OpenGLOcean::setRipples(GLfloat rmsSlope)
     }
 }
 
-GLfloat OpenGLOcean::getRipples()
+GLfloat OpenGLOcean::GetRipples()
 {
     return rippleSlope_;
 }
 
-void OpenGLOcean::setCaustics(bool enabled)
+void OpenGLOcean::SetCaustics(bool enabled)
 {
     causticsEnabled_ = enabled;
 }
 
-bool OpenGLOcean::getCausticsEnabled()
+bool OpenGLOcean::GetCausticsEnabled()
 {
     return causticsEnabled_;
 }
@@ -567,12 +567,12 @@ GLfloat OpenGLOcean::GetWaterTemperature()
     return waterTemperature_;
 }
 
-void OpenGLOcean::setBottom(GLfloat depth, GLfloat albedo)
+void OpenGLOcean::SetBottom(GLfloat depth, GLfloat albedo)
 {
     bottom_ = glm::vec2(glm::max(depth, 0.f), glm::clamp(albedo, 0.f, 1.f));
 }
 
-glm::vec2 OpenGLOcean::getBottom()
+glm::vec2 OpenGLOcean::GetBottom()
 {
     return bottom_;
 }
@@ -658,7 +658,7 @@ void OpenGLOcean::InitializeSimulation()
     OpenGLState::BindFramebuffer(0);    
 }
 
-bool OpenGLOcean::simulatesWaves()
+bool OpenGLOcean::SimulatesWaves()
 {
     return true;
 }
@@ -751,7 +751,7 @@ void OpenGLOcean::SimulateWaves(GLfloat dt)
 
 void OpenGLOcean::Simulate(GLfloat dt)
 {
-    if(simulatesWaves())
+    if(SimulatesWaves())
         SimulateWaves(dt);
     else
         params_.t += dt;
@@ -796,7 +796,7 @@ void OpenGLOcean::DrawBackground(OpenGLView* view)
     oceanShaders_["background"]->SetUniform("eyePos", view->GetEyePosition());
     oceanShaders_["background"]->SetUniform("cWater", GetLightAttenuation());
     oceanShaders_["background"]->SetUniform("bWater", GetLightScattering());
-    oceanShaders_["background"]->SetUniform("waterBottom", getBottom());
+    oceanShaders_["background"]->SetUniform("waterBottom", GetBottom());
     glCullFace(GL_FRONT);
     static_cast<GraphicalSimulationApp*>(SimulationApp::GetApp())->GetGlPipeline()->GetContent()->SetDrawingMode(DrawingMode::RAW);
     static_cast<GraphicalSimulationApp*>(SimulationApp::GetApp())->GetGlPipeline()->GetContent()->DrawObject(oceanBoxObj_, -1, glm::mat4(1.f));
@@ -975,7 +975,7 @@ void OpenGLOcean::ApplySpecialEffects(OpenGLCamera* cam)
     oceanShaders["blur"]->Use();
     oceanShaders["blur"]->SetUniform("cWater", getLightAttenuation());
     oceanShaders["blur"]->SetUniform("bWater", getLightScattering());
-    oceanShaders["blur"]->SetUniform("waterBottom", getBottom());
+    oceanShaders["blur"]->SetUniform("waterBottom", GetBottom());
     oceanShaders["blur"]->SetUniform("blurScale", 0.002f);
     oceanShaders["blur"]->SetUniform("blurShape", glm::vec2(1.f/(GLfloat)viewport[2], 1.f/(GLfloat)viewport[3]));
     oceanShaders["blur"]->SetUniform("texScene", TEX_POSTPROCESS1);

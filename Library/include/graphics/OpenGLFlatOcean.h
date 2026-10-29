@@ -49,7 +49,7 @@ namespace sf
         void UpdateSurface(OpenGLView* view) override;
 
         //! A method informing if the surface is shaped by the simulated waves (it is not).
-        bool simulatesWaves() override;
+        bool SimulatesWaves() override;
         
         //! A method that draws the surface of the ocean.
         /*!

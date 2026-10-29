@@ -361,7 +361,7 @@ The parameters of the models describe a right-hand propeller. A left-hand propel
         <torque_coeff value="0.1"/>
     </thrust_model>
 
-The ``quadratic``, ``deadband`` and ``linear_interpolation`` models do not generate torque by default. The optional attribute ``torque_ratio`` [m] of the ``thrust_model`` element adds a reaction torque, acting on the link about the thruster axis, with a magnitude of ``torque_ratio * |thrust|`` and a direction opposite to the rotation of the propeller (the same convention as in the ``fluid_dynamics`` model, which ignores this attribute). The default value is 0. For the Blue Robotics T200 thruster a value of about 0.02 m can be used (a rough estimate based on the rated power and speed, not a measured value), which gives about 1 Nm at full forward thrust. In the C++ code the ratio is set using the ``setTorqueRatio()`` method of the thrust model.
+The ``quadratic``, ``deadband`` and ``linear_interpolation`` models do not generate torque by default. The optional attribute ``torque_ratio`` [m] of the ``thrust_model`` element adds a reaction torque, acting on the link about the thruster axis, with a magnitude of ``torque_ratio * |thrust|`` and a direction opposite to the rotation of the propeller (the same convention as in the ``fluid_dynamics`` model, which ignores this attribute). The default value is 0. For the Blue Robotics T200 thruster a value of about 0.02 m can be used (a rough estimate based on the rated power and speed, not a measured value), which gives about 1 Nm at full forward thrust. In the C++ code the ratio is set using the ``SetTorqueRatio()`` method of the thrust model.
 
 .. code-block:: xml
 

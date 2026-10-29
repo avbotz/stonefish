@@ -27,7 +27,7 @@ Optionally, the user can enable a watchdog timer that will reset the actuator if
 .. code-block:: cpp
 
     std::unique_ptr<sf::Thruster> th = std::make_unique<sf::Thruster>(...);  
-    th->setWatchdog(Scalar(1));
+    th->SetWatchdog(Scalar(1));
 
 Not all of the actuators are going to use the watchdog as it is limited to the ones that have a clear zero state.
 
@@ -71,7 +71,7 @@ A motor is a simple actuator that applies desired torque to the joint.
     #include <Stonefish/actuators/Motor.h>
 
     std::unique_ptr<sf::Motor> motor = std::make_unique<sf::Motor>("Motor");
-    motor->setTorque(1.0);
+    motor->SetTorque(1.0);
     robot->AddJointActuator(std::move(motor), "Joint1");
 
 Servomotor
@@ -93,9 +93,9 @@ It is possible to define an initial position of the joint that will be achieved 
     #include <Stonefish/actuators/Servo.h>
 
     std::unique_ptr<sf::Servo> srv = std::make_unique<sf::Servo>("Servo", 1.0, 0.5, 10.0);
-    srv->setControlMode(sf::ServoControlMode::POSITION);
-    srv->setMaxVelocity(0.1);
-    srv->setDesiredPosition(0.5);
+    srv->SetControlMode(sf::ServoControlMode::POSITION);
+    srv->SetMaxVelocity(0.1);
+    srv->SetDesiredPosition(0.5);
     robot->AddJointActuator(std::move(srv), "Joint1");
 
 Link actuators
@@ -138,7 +138,7 @@ A push actuator is a virtual actuator that applies a given force to the attached
     #include <Stonefish/actuators/Push.h>
 
     std::unique_ptr<sf::Push> push = std::make_unique<sf::Push>("Push", false);
-    push->setForceLimits(10.0, 10.0);
+    push->SetForceLimits(10.0, 10.0);
     robot->AddLinkActuator(std::move(push), "Link1", sf::I4()); 
 
 Propeller
@@ -205,7 +205,7 @@ A simple thruster is an extension of the *push* actuator that functions only und
     std::unique_ptr<sf::SimpleThruster> thruster = std::make_unique<sf::SimpleThruster>(
         "SimpleThruster", std::make_unique<sf::Polyhedron>("PropMesh", phy, sf::GetDataPath() + "propeller.obj", 1.0, sf::I4(), "Steel", "Red"),
         true, false);
-    thruster->setThrustLimits(10.0, 10.0);
+    thruster->SetThrustLimits(10.0, 10.0);
     robot->AddLinkActuator(std::move(thruster), "Link1", sf::I4()); 
 
 Thruster
@@ -348,7 +348,7 @@ The parameters of the models describe a right-hand propeller. A left-hand propel
         <torque_coeff value="0.1"/>
     </thrust_model>
 
-The ``quadratic``, ``deadband`` and ``linear_interpolation`` models do not generate torque by default. The optional attribute ``torque_ratio`` [m] of the ``thrust_model`` element adds a reaction torque, acting on the link about the thruster axis, with a magnitude of ``torque_ratio * |thrust|`` and a direction opposite to the rotation of the propeller (the same convention as in the ``fluid_dynamics`` model, which ignores this attribute). The default value is 0. For the Blue Robotics T200 thruster a value of about 0.02 m can be used (a rough estimate based on the rated power and speed, not a measured value), which gives about 1 Nm at full forward thrust. In the C++ code the ratio is set using the ``setTorqueRatio()`` method of the thrust model.
+The ``quadratic``, ``deadband`` and ``linear_interpolation`` models do not generate torque by default. The optional attribute ``torque_ratio`` [m] of the ``thrust_model`` element adds a reaction torque, acting on the link about the thruster axis, with a magnitude of ``torque_ratio * |thrust|`` and a direction opposite to the rotation of the propeller (the same convention as in the ``fluid_dynamics`` model, which ignores this attribute). The default value is 0. For the Blue Robotics T200 thruster a value of about 0.02 m can be used (a rough estimate based on the rated power and speed, not a measured value), which gives about 1 Nm at full forward thrust. In the C++ code the ratio is set using the ``SetTorqueRatio()`` method of the thrust model.
 
 .. code-block:: xml
 

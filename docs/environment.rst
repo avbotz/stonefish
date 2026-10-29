@@ -22,7 +22,7 @@ The same can be achieved in code by the following line:
 
 .. code-block:: cpp
 
-    getNED()->Init(40.0, 20.0, 0.0);
+    GetNed()->Init(40.0, 20.0, 0.0);
 
 Ocean
 =====
@@ -51,9 +51,9 @@ Ocean optics
 As mentioned before, underwater rendering plays an important role in realistic simulation of optical sensors. The *Stonefish* library implements optical effects encountered in ocean waters like light absorption, out-scattering, and in-scattering, also called the airlight.
 The absorption and scattering coefficeints are computed for three wavelengths, corresponding to the red, green and blue channels of the rendering pipeline, based on the Jerlov measurements covering wide spectrum of the coastal water types. The temperature of the water defines its viscosity, used to compute the skin friction of bodies. The water quality is defined with a single parameter ranging from 0.0 to 1.0, where the lower limit corresponds to the Jerlov type I water and the upper limit represents the Jerlov type 9C water.
 
-The sun light reaching underwater objects is refracted and partially reflected at the surface (Fresnel equations), which changes its direction, intensity and the direction of the cast shadows. Its intensity is modulated by caustics, computed by tracing the light refracted by the ripples down to a series of depths. The caustics are enabled by default and can be disabled from the scenario file (``<caustics enabled="false"/>``), the standard GUI or the code (``Ocean::setCaustics()``), in which case the refracted sun light reaches the bottom uniformly. Seen from under water, the surface shows the sky through the Snell's window and reflects the underwater scene outside of it (total internal reflection). The mirror image of the scene is rendered for flat ocean surfaces.
+The sun light reaching underwater objects is refracted and partially reflected at the surface (Fresnel equations), which changes its direction, intensity and the direction of the cast shadows. Its intensity is modulated by caustics, computed by tracing the light refracted by the ripples down to a series of depths. The caustics are enabled by default and can be disabled from the scenario file (``<caustics enabled="false"/>``), the standard GUI or the code (``Ocean::SetCaustics()``), in which case the refracted sun light reaches the bottom uniformly. Seen from under water, the surface shows the sky through the Snell's window and reflects the underwater scene outside of it (total internal reflection). The mirror image of the scene is rendered for flat ocean surfaces.
 
-A bottom reflecting light can be defined (``<bottom depth="2.15" albedo="0.85"/>``, ``Ocean::setBottom()``): a horizontal floor at the given depth below the surface, which reflects the given fraction of the light reaching it diffusely, e.g. the floor of a pool. The light it reflects up, and the part of that which the surface reflects back down (mostly by total internal reflection), lights the surfaces facing sideways and down and the shadows, and scatters in the water. In a shallow pool with a light floor this is most of the light that does not come directly from the sun. The bottom is only a lighting effect: it does not create any geometry. Without it, the only diffuse light under water is the sky light transmitted through the surface.
+A bottom reflecting light can be defined (``<bottom depth="2.15" albedo="0.85"/>``, ``Ocean::SetBottom()``): a horizontal floor at the given depth below the surface, which reflects the given fraction of the light reaching it diffusely, e.g. the floor of a pool. The light it reflects up, and the part of that which the surface reflects back down (mostly by total internal reflection), lights the surfaces facing sideways and down and the shadows, and scatters in the water. In a shallow pool with a light floor this is most of the light that does not come directly from the sun. The bottom is only a lighting effect: it does not create any geometry. Without it, the only diffuse light under water is the sky light transmitted through the surface.
 
 Suspended particles
 -------------------
@@ -90,14 +90,14 @@ The following lines of code can be used to achieve the same:
     #include <Stonefish/entities/forcefields/Uniform.h>
     #include <Stonefish/entities/forcefields/Jet.h>
 
-    getMaterialManager()->CreateFluid("OceanWater", 1031.0, 1.14e-3, 1.33); //Dynamic viscosity of water at 15 degC
-    EnableOcean(0.0, getMaterialManager()->getFluid("OceanWater"));
-    getOcean()->setWaterType(0.2);
-    getOcean()->setRipples(0.05);
-    getOcean()->setCaustics(true);
-    getOcean()->SetConditions(15.0);
-    getOcean()->AddVelocityField(std::make_unique<sf::Uniform>(sf::Vector3(1.0, 0.0, 0.0)));
-    getOcean()->AddVelocityField(std::make_unique<sf::Jet>(sf::Vector3(0.0, 0.0, 3.0), sf::Vector3(0.0, 1.0, 0.0), 0.2, 2.0));
+    GetMaterialManager()->CreateFluid("OceanWater", 1031.0, 1.14e-3, 1.33); //Dynamic viscosity of water at 15 degC
+    EnableOcean(0.0, GetMaterialManager()->GetFluid("OceanWater"));
+    GetOcean()->SetWaterType(0.2);
+    GetOcean()->SetRipples(0.05);
+    GetOcean()->SetCaustics(true);
+    GetOcean()->SetConditions(15.0);
+    GetOcean()->AddVelocityField(std::make_unique<sf::Uniform>(sf::Vector3(1.0, 0.0, 0.0)));
+    GetOcean()->AddVelocityField(std::make_unique<sf::Jet>(sf::Vector3(0.0, 0.0, 3.0), sf::Vector3(0.0, 1.0, 0.0), 0.2, 2.0));
 
 Atmosphere
 ==========
@@ -145,10 +145,10 @@ The following lines of code can be used to achieve the same:
     #include <Stonefish/entities/forcefields/Uniform.h>
     #include <Stonefish/entities/forcefields/Jet.h>
 
-    getAtmosphere()->SetupSunPosition(20.0, 50.0);
-    getAtmosphere()->SetConditions(20.0, 101300.0, 0.5);
-    getAtmosphere()->AddVelocityField(std::make_unique<sf::Uniform>(sf::Vector3(1.0, 0.0, 0.0)));
-    getAtmosphere()->AddVelocityField(std::make_unique<sf::Jet>(sf::Vector3(0.0, 0.0, 3.0), sf::Vector3(0.0, 1.0, 0.0), 0.2, 2.0));
+    GetAtmosphere()->SetSunPosition(20.0, 50.0);
+    GetAtmosphere()->SetConditions(20.0, 101300.0, 0.5);
+    GetAtmosphere()->AddVelocityField(std::make_unique<sf::Uniform>(sf::Vector3(1.0, 0.0, 0.0)));
+    GetAtmosphere()->AddVelocityField(std::make_unique<sf::Jet>(sf::Vector3(0.0, 0.0, 3.0), sf::Vector3(0.0, 1.0, 0.0), 0.2, 2.0));
 
 Static bodies
 =============

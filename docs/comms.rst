@@ -51,7 +51,7 @@ Moreover, an occlusion test is performed as default, to take into account the ob
 
     std::unique_ptr<sf::AcousticModem> modem = std::make_unique<sf::AcousticModem>("Modem", 5, 0.0, 220.0, 1000.0);
     modem->Connect(9);
-    modem->setOcclusionTest(true);
+    modem->SetOcclusionTest(true);
     robot->AddComm(std::move(modem), "Link1", sf::I4());
 
 USBL
@@ -88,9 +88,9 @@ Simple USBL
     std::unique_ptr<sf::SimpleUSBL> usbl = std::make_unique<sf::SimpleUSBL>("USBL", 5, 0.0, 220.0, 1000.0);
     usbl->Connect(9);
     usbl->EnableAutoPing(1.0);
-    usbl->setOcclusionTest(false);
-    usbl->setNoise(0.05, 0.2, 0.5);
-    usbl->setResolution(0.1, 0.1);
+    usbl->SetOcclusionTest(false);
+    usbl->SetNoise(0.05, 0.2, 0.5);
+    usbl->SetResolution(0.1, 0.1);
     robot->AddComm(std::move(usbl), "Link1", sf::I4());
 
 Realistic USBL
@@ -116,8 +116,8 @@ The realistic USBL model requires the carrier frequency of the acoustic signal [
     std::unique_ptr<sf::RealUSBL> usbl = std::make_unique<sf::RealUSBL>("USBL", 5, 0.0, 220.0, 1000.0, 25000.0, 0.05);
     usbl->Connect(9);
     usbl->EnableAutoPing(1.0);
-    usbl->setOcclusionTest(false);
-    usbl->setNoise(0.00001, 1.0, 0.01, 0.0001, 0.1);
+    usbl->SetOcclusionTest(false);
+    usbl->SetNoise(0.00001, 1.0, 0.01, 0.0001, 0.1);
     robot->AddComm(std::move(usbl), "Link1", sf::I4());
 
 Optical modem

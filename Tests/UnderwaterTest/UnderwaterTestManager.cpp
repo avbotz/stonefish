@@ -116,7 +116,6 @@ void UnderwaterTestManager::BuildScenario()
     GetOcean()->SetWaterType(0.2);
     GetOcean()->AddVelocityField(std::make_unique<sf::Jet>(sf::Vector3(0,0,1.0), sf::VY(), 0.3, 5.0));
     GetOcean()->AddVelocityField(std::make_unique<sf::Uniform>(sf::Vector3(1.0,0.0,0.0)));
-    GetOcean()->EnableVelocityFields();
     GetAtmosphere()->SetSunPosition(0.0, 60.0);
     GetNed()->Init(41.77737, 3.03376, 0.0);
     
@@ -214,7 +213,7 @@ void UnderwaterTestManager::BuildScenario()
         std::unique_ptr<sf::MechanicalPI> rotorDynamics;
         rotorDynamics = std::make_unique<sf::MechanicalPI>(1.0, 10.0, 5.0, 5.0);
         std::unique_ptr<sf::FDThrust> thrustModel;
-        thrustModel = std::make_unique<sf::FDThrust>(0.18, 0.48, 0.48, 0.05, true, GetOcean()->GetLiquid().density);
+        thrustModel = std::make_unique<sf::FDThrust>(0.48, 0.48, 0.05, 0.18, true, GetOcean()->GetLiquid().density);
         thrusters[i] = std::make_unique<sf::Thruster>(thrusterNames[i], std::move(propeller), std::move(rotorDynamics), std::move(thrustModel), 0.18, true, 105.0, true, true);
     }
 
@@ -231,7 +230,7 @@ void UnderwaterTestManager::BuildScenario()
     press->SetNoise(1.0);
     
     std::unique_ptr<sf::DVL> dvl = std::make_unique<sf::DVL>("DVL", 30.0, false);
-    dvl->SetNoise(0.0, 0.02, 0.05, 0.0, 0.02);
+    dvl->SetNoise(10.0, 0.02, 0.05, 0.0, 0.02);
     
     std::unique_ptr<sf::IMU> imu = std::make_unique<sf::IMU>("IMU");
     imu->SetNoise(sf::V0(), sf::Vector3(0.05, 0.05, 0.1), 0.0, sf::Vector3(0.01, 0.01, 0.02));

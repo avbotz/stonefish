@@ -25,6 +25,8 @@
 
 #include "sensors/scalar/DVL.h"
 
+#include <iostream>
+
 #include "BulletCollision/NarrowPhaseCollision/btRaycastCallback.h"
 #include "core/SimulationApp.h"
 #include "core/SimulationManager.h"
@@ -198,7 +200,17 @@ void DVL::InternalUpdate(Scalar dt)
     channels_[4].SetStdDev(mulNoiseFactor_[1] * wv.x() + addNoiseStdDev_[1]);
     channels_[5].SetStdDev(mulNoiseFactor_[1] * wv.y() + addNoiseStdDev_[1]);
     channels_[6].SetStdDev(mulNoiseFactor_[1] * wv.z() + addNoiseStdDev_[1]);
-    
+
+    const char* axes[3] = {"x", "y", "z"};
+    for(unsigned int i=0; i<3; ++i) {
+        Scalar requested = mulNoiseFactor_[0] * v[i] + addNoiseStdDev_[0];
+        std::cout << "v" << axes[i] << "=" << v[i]
+                  << std::fixed << std::setprecision(2)
+                  << " requested_std=" << requested
+                  << " applied_std=" << channels_[i].stdDev
+                  << std::endl;
+    }
+
     //Save data
     AddSampleToHistory(std::make_unique<Sample>(
         std::vector<Scalar>({v.x(), v.y(), v.z(), altitude, wv.x(), wv.y(), wv.z(), Scalar(status)})
